@@ -35,15 +35,69 @@ def gtip_cevir(girdi):
     return temiz
 
 def parse_yapistir(ham):
-    """Excel'den tab veya satır satır yapıştırılan 3 veriyi parse et"""
+    """
+    Excel'den kopyalanan 3 veriyi parse et.
+    Desteklenen formatlar:
+      - Tab ile ayrılmış tek satır: GTİP\tÜLKE\tTARİH
+      - Her biri ayrı satırda: GTİP\nÜLKE\nTARİH
+      - 2. satırda ülke+tarih boşlukla: GTİP\nÜLKE  TARİH
+    """
     ham = ham.strip()
+
+    # Tab varsa direkt split
     if "\t" in ham:
         return [p.strip() for p in ham.split("\t") if p.strip()]
-    else:
-        return [p.strip() for p in ham.splitlines() if p.strip()]
+
+    satirlar = [s.strip() for s in ham.splitlines() if s.strip()]
+
+    # 3 ayrı satır
+    if len(satirlar) >= 3:
+        return satirlar[:3]
+
+    # 2 satır — ikincisinde ülke + tarih boşlukla ayrılmış olabilir
+    if len(satirlar) == 2:
+        gtip = satirlar[0]
+        kalan = satirlar[1].split()
+        # Tarih genellikle son parça (dd.mm.yyyy veya dd-mm-yyyy)
+        import re
+        tarih_pattern = re.compile(r'\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}')
+        tarih = ""
+        ulke_parcalar = []
+        for p in kalan:
+            if tarih_pattern.match(p):
+                tarih = p
+            else:
+                ulke_parcalar.append(p)
+        ulke = " ".join(ulke_parcalar)
+        if gtip and ulke and tarih:
+            return [gtip, ulke, tarih]
+
+    return satirlar
+
+def tarih_url_formatla(tarih):
+    """DD-MM-YYYY → YYYYMMDD"""
+    from datetime import datetime
+    for fmt in ("%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(tarih.strip(), fmt).strftime("%Y%m%d")
+        except:
+            continue
+    return tarih.strip().replace("-", "").replace(".", "")
 
 def taric_sorgula(gtip, ulke, tarih):
     try:
+        tarih_fmt = tarih_url_formatla(tarih)
+        # Direkt sonuç URL — form submit yok, hata yok
+        url = (
+            f"https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp"
+            f"?Lang=en"
+            f"&SimDate={tarih_fmt}"
+            f"&Area={ulke.strip()}"
+            f"&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op="
+            f"&Taric={gtip.strip()}"
+            f"&AdditionalCode=&search_text=goods&textSearch=&LangDescr=en&OrderNum="
+        )
+
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
@@ -53,25 +107,7 @@ def taric_sorgula(gtip, ulke, tarih):
             context = browser.new_context(viewport={"width": 1400, "height": 900})
             page = context.new_page()
 
-            url = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en"
             page.goto(url, wait_until="networkidle", timeout=30000)
-
-            page.fill("#taricCode", gtip.strip())
-
-            if ulke.strip():
-                try:
-                    page.select_option("#taricArea", ulke.strip())
-                except:
-                    pass
-
-            if tarih.strip():
-                page.evaluate(
-                    "(t) => { document.querySelector('#SimDatePic').value = t; }",
-                    tarih.strip()
-                )
-
-            page.click("button[value='Retrieve Measures']")
-            page.wait_for_load_state("networkidle", timeout=20000)
             time.sleep(1.5)
 
             html_content = page.content()
