@@ -252,6 +252,33 @@ with sol:
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
+    # ── NAVİGASYON < > ───────────────────────────────────────────────────────
+    if st.session_state.kuyruk:
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        idx    = st.session_state.aktif_idx
+        toplam = len(st.session_state.kuyruk)
+        cn1, cn2, cn3 = st.columns([1, 2, 1])
+        with cn1:
+            if st.button("◀", use_container_width=True, disabled=idx == 0):
+                st.session_state.aktif_idx -= 1
+                st.session_state.sorgulandı = False
+                st.session_state.page_html  = None
+                st.session_state.pdf_bytes  = None
+                st.session_state.input_ver += 1
+                st.rerun()
+        with cn2:
+            st.markdown(f"<div style='text-align:center;font-family:JetBrains Mono,monospace;"
+                        f"font-size:12px;color:#6b7280;padding:8px 0;'>"
+                        f"{idx+1} / {toplam}</div>", unsafe_allow_html=True)
+        with cn3:
+            if st.button("▶", use_container_width=True, disabled=idx >= toplam - 1):
+                st.session_state.aktif_idx += 1
+                st.session_state.sorgulandı = False
+                st.session_state.page_html  = None
+                st.session_state.pdf_bytes  = None
+                st.session_state.input_ver += 1
+                st.rerun()
+
     # ── KUYRUK LİSTESİ ───────────────────────────────────────────────────────
     if st.session_state.kuyruk:
         st.markdown("<hr>", unsafe_allow_html=True)
