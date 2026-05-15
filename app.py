@@ -1,8 +1,7 @@
 import streamlit as st
 from playwright.sync_api import sync_playwright
-import json, os, time, re
+import json, os, re
 
-# ─── YARDIMCI FONKSİYONLAR ───────────────────────────────────────────────────
 @st.cache_data
 def ulke_listesi_yukle():
     json_yol = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ulkeler.json")
@@ -31,15 +30,14 @@ def gtip_cevir(girdi):
 
 def tarih_cevir(girdi):
     girdi = girdi.strip()
-    parcalar = re.split(r'[.\-/]', girdi)
-    if len(parcalar) == 3:
-        g, m, y = parcalar
-        return f"{g.zfill(2)}-{m.zfill(2)}-{y}"
+    p = re.split(r'[.\-/]', girdi)
+    if len(p) == 3:
+        return f"{p[0].zfill(2)}-{p[1].zfill(2)}-{p[2]}"
     return girdi
 
 def satirlari_parse_et(ham):
     ham = ham.strip()
-    satirlar = []
+    sonuc = []
     tarih_re = re.compile(r'\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}')
     for satir in ham.splitlines():
         satir = satir.strip()
@@ -47,490 +45,277 @@ def satirlari_parse_et(ham):
         if "\t" in satir:
             p = [x.strip() for x in satir.split("\t") if x.strip()]
             if len(p) >= 3:
-                satirlar.append(p[:3])
-            elif len(p) == 2:
-                m = tarih_re.search(p[1])
-                if m:
-                    satirlar.append([p[0], p[1][:m.start()].strip(), m.group()])
+                sonuc.append(p[:3])
         else:
             m = tarih_re.search(satir)
             if m:
-                tarih_str = m.group()
-                kalan = satir[:m.start()].strip()
-                gtip_m = re.match(r'[\d.]+', kalan)
-                if gtip_m:
-                    satirlar.append([kalan[:gtip_m.end()].strip(),
-                                     kalan[gtip_m.end():].strip(), tarih_str])
-    sonuc = []
-    for p in satirlar:
-        if len(p) >= 3:
-            sonuc.append({
-                "gtip_ham": p[0], "ulke_ham": p[1], "tarih_ham": p[2],
-                "gtip":  gtip_cevir(p[0]),
-                "ulke":  ulke_cevir(p[1]),
-                "tarih": tarih_cevir(p[2]),
-            })
-    return sonuc
-
-# ─── PLAYWRIGHT ───────────────────────────────────────────────────────────────
-# Tek Playwright oturumu — form sayfası açık kalır
-_pw_oturum = {}
-
-def _pw_baslat():
-    """Playwright ve tarayıcıyı başlat, form sayfasını aç"""
-    pw      = sync_playwright().start()
-    browser = pw.chromium.launch(
-        headless=True,
-        executable_path="/usr/bin/chromium",
-        args=["--no-sandbox", "--disable-dev-shm-usage"]
-    )
-    context = browser.new_context()
-    page    = context.new_page()
-    page.goto(
-        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
-        wait_until="domcontentloaded", timeout=15000
-    )
-    _pw_oturum["pw"]      = pw
-    _pw_oturum["browser"] = browser
-    _pw_oturum["page"]    = page
-    return page
-
-def _pw_kapat():
-    try:
-        if _pw_oturum.get("browser"):
-            _pw_oturum["browser"].close()
-        if _pw_oturum.get("pw"):
-            _pw_oturum["pw"].stop()
-    except: pass
-    _pw_oturum.clear()
+                kalan  = satir[:m.start()].strip()
+                gm     = re.match(r'[\d.]+', kalan)
+                if gm:
+                    sonuc.append([kalan[:gm.end()].strip(), kalan[gm.end():].strip(), m.group()])
+    return [{
+        "gtip":  gtip_cevir(p[0]),
+        "ulke":  ulke_cevir(p[1]),
+        "tarih": tarih_cevir(p[2]),
+        "gtip_ham": p[0], "ulke_ham": p[1],
+    } for p in sonuc if len(p) >= 3]
 
 def taric_sorgula(gtip, ulke, tarih):
-    """Form sayfası açık kalır — geri git, doldur, submit"""
     try:
-        t0   = time.time()
-        page = _pw_oturum.get("page")
-
-        if not page:
-            # İlk kez — tarayıcı aç
-            page = _pw_baslat()
-        else:
-            # Sonraki sorgular — geri tuşuna bas, form sayfasına dön
-            try:
-                page.go_back(wait_until="domcontentloaded", timeout=8000)
-                # Form sayfasında mıyız?
-                if not page.query_selector("#taricCode"):
-                    page.goto(
-                        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
-                        wait_until="domcontentloaded", timeout=15000
-                    )
-            except:
-                # Hata olursa form sayfasını yeniden aç
-                try:
-                    page.goto(
-                        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
-                        wait_until="domcontentloaded", timeout=15000
-                    )
-                except:
-                    _pw_kapat()
-                    page = _pw_baslat()
-
-        # Formu doldur
-        page.fill("#taricCode", "")
-        page.fill("#taricCode", gtip.strip())
-        if ulke.strip():
-            try: page.select_option("#taricArea", ulke.strip())
-            except: pass
-        if tarih.strip():
-            page.evaluate(
-                "(t) => { document.querySelector('#SimDatePic').value = t; }",
-                tarih.strip()
-            )
-
-        # Submit
-        page.click("button[value='Retrieve Measures']")
-        page.wait_for_load_state("domcontentloaded", timeout=15000)
-        try:
-            page.wait_for_selector("h1, table", timeout=5000)
-        except: pass
-        t1 = time.time()
-
-        html  = page.content()
-        pdf   = page.pdf(format="A4", print_background=True, scale=1.0)
-        pdf65 = page.pdf(format="A4", print_background=True, scale=0.65)
-        t2    = time.time()
-
-        _pw_oturum["page"] = page
-        zaman = {"yukle": round(t1-t0,1), "pdf": round(t2-t1,1), "toplam": round(t2-t0,1)}
-        return html, pdf, pdf65, None, zaman
-    except Exception as e:
-        _pw_kapat()
-        return None, None, None, str(e), {}
-
-def taric_url_ac(url):
-    """GTİP linkine tıklanınca direkt URL aç"""
-    try:
-        t0 = time.time()
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
                 executable_path="/usr/bin/chromium",
                 args=["--no-sandbox", "--disable-dev-shm-usage"]
             )
-            context = browser.new_context()
-            page    = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=15000)
-            try:
-                page.wait_for_selector("table", timeout=5000)
+            page = browser.new_context().new_page()
+            page.goto(
+                "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
+                wait_until="domcontentloaded", timeout=20000
+            )
+            page.wait_for_selector("#taricCode", timeout=8000)
+            page.fill("#taricCode", gtip.strip())
+            if ulke.strip():
+                try: page.select_option("#taricArea", ulke.strip())
+                except: pass
+            if tarih.strip():
+                page.evaluate("(t) => { document.querySelector('#SimDatePic').value = t; }", tarih.strip())
+            page.click("button[value='Retrieve Measures']")
+            page.wait_for_load_state("domcontentloaded", timeout=20000)
+            try: page.wait_for_selector("h1, table", timeout=6000)
             except: pass
-            t1   = time.time()
-            html = page.content()
-            pdf  = page.pdf(format="A4", print_background=True, scale=1.0)
-            pdf65= page.pdf(format="A4", print_background=True, scale=0.65)
-            t2   = time.time()
+            html  = page.content()
+            pdf   = page.pdf(format="A4", print_background=True, scale=1.0)
+            pdf65 = page.pdf(format="A4", print_background=True, scale=0.65)
             browser.close()
-        zaman = {"yukle": round(t1-t0,1), "pdf": round(t2-t1,1), "toplam": round(t2-t0,1)}
-        return html, pdf, pdf65, None, zaman
+        return html, pdf, pdf65, None
     except Exception as e:
-        return None, None, None, str(e), {}
-
-def linkleri_cıkar(html):
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, "html.parser")
-    seen, sonuc = set(), []
-    for a in soup.find_all("a", href=True):
-        href  = a["href"]
-        metin = a.get_text(strip=True)
-        if not metin or not href: continue
-        if "Taric=" not in href and "taric=" not in href: continue
-        if not re.match(r'^[\d\s]+$', metin): continue
-        if len(metin.strip()) < 4: continue
-        if href.startswith("/"): href = "https://ec.europa.eu" + href
-        if not href.startswith("http") or href in seen: continue
-        seen.add(href)
-        sonuc.append({"metin": metin.strip(), "url": href})
-    return sonuc
+        return None, None, None, str(e)
 
 def html_temizle(html):
-    html = re.sub(r'<meta[^>]*(x-frame-options|content-security-policy)[^>]*>',
-                  '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*(x-frame-options|content-security-policy)[^>]*>', '', html, flags=re.IGNORECASE)
     ek = ('<base href="https://ec.europa.eu" target="_self">'
-          '<style>body{font-size:15px!important;line-height:1.7!important;'
-          'font-family:Arial,sans-serif!important}'
-          'table{font-size:14px!important}td,th{padding:6px 10px!important}'
-          'a[href]{cursor:pointer!important}</style>')
+          '<style>body{font-size:15px!important;line-height:1.7!important;font-family:Arial,sans-serif!important}'
+          'table{font-size:14px!important}td,th{padding:6px 10px!important}</style>')
     return html.replace("<head>", "<head>" + ek, 1) if "<head>" in html else ek + html
 
-# ─── SAYFA AYARI ──────────────────────────────────────────────────────────────
+# ─── SAYFA ────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="TARIC Sorgu", page_icon="🛃",
                    layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap');
-html,body,[data-testid="stAppViewContainer"]{background:#f5f3ef;font-family:'Syne',sans-serif;color:#1a1a1a;}
+html,body,[data-testid="stAppViewContainer"]{background:#f5f3ef;font-family:'Segoe UI',sans-serif;}
 section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
 .block-container{padding:12px 16px!important;max-width:100%!important;}
-[data-testid="stTextArea"] textarea{
-    background:#fff!important;border:1px solid #9ca3af!important;border-radius:4px!important;
-    color:#111827!important;font-family:'JetBrains Mono',monospace!important;
-    font-size:10px!important;line-height:1.8!important;padding:8px 10px!important;
-    white-space:pre!important;overflow-x:auto!important;tab-size:16!important;
-}
 [data-testid="stTextInput"] input{
     background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
-    color:#1a1a1a!important;font-family:'JetBrains Mono',monospace!important;
-    font-size:13px!important;font-weight:700!important;padding:7px 10px!important;
+    font-family:monospace!important;font-size:13px!important;font-weight:700!important;padding:7px 10px!important;
 }
-[data-testid="stTextArea"] label,[data-testid="stTextInput"] label{
-    color:#888!important;font-size:10px!important;font-weight:700!important;
-    letter-spacing:1.5px!important;text-transform:uppercase!important;
+[data-testid="stTextArea"] textarea{
+    background:#fff!important;border:1px solid #9ca3af!important;border-radius:4px!important;
+    font-family:monospace!important;font-size:10px!important;padding:8px 10px!important;
+    white-space:pre!important;overflow-x:auto!important;tab-size:16!important;
 }
-.stButton>button{
-    font-family:'Syne',sans-serif!important;font-weight:700!important;font-size:11px!important;
-    border-radius:4px!important;padding:8px 0!important;width:100%!important;border:none!important;
-}
-.btn-sorgula .stButton>button{background:#1d4ed8!important;color:white!important;font-size:14px!important;padding:13px 0!important;}
-.btn-pdf     .stButton>button{background:#16a34a!important;color:white!important;}
-.btn-pdf65   .stButton>button{background:#0891b2!important;color:white!important;}
-.btn-devam   .stButton>button{background:#d97706!important;color:white!important;}
-.btn-reset   .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
-.satir-kart{background:white;border:1px solid #e5e7eb;border-radius:5px;padding:5px 10px;
-            margin-bottom:3px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#374151;}
-.satir-aktif{border-color:#1d4ed8!important;background:#eff6ff!important;font-weight:700;color:#1d4ed8!important;}
-.satir-tamam{opacity:0.4;}
+.stButton>button{font-weight:700!important;border-radius:4px!important;padding:9px 0!important;width:100%!important;border:none!important;}
+.btn-s  .stButton>button{background:#1d4ed8!important;color:white!important;font-size:14px!important;padding:13px 0!important;}
+.btn-p  .stButton>button{background:#16a34a!important;color:white!important;}
+.btn-p65.stButton>button{background:#0891b2!important;color:white!important;}
+.btn-d  .stButton>button{background:#d97706!important;color:white!important;}
+.btn-r  .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
+.kart{background:white;border:1px solid #e5e7eb;border-radius:5px;padding:5px 10px;margin-bottom:3px;font-family:monospace;font-size:11px;}
+.aktif{border-color:#1d4ed8!important;background:#eff6ff!important;font-weight:700;color:#1d4ed8!important;}
+.tamam{opacity:0.4;}
 .prog{background:#e5e7eb;border-radius:8px;height:5px;overflow:hidden;margin:3px 0 10px;}
-.prog-bar{background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;border-radius:8px;}
+.prog-bar{background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;}
 hr{border-color:#e0ddd5!important;margin:8px 0!important;}
 </style>
 """, unsafe_allow_html=True)
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in {
-    "kuyruk": [], "aktif_idx": 0,
-    "page_html": None, "pdf_bytes": None, "pdf_bytes_kucuk": None,
-    "sorgulandı": False, "pdf_sayisi": 0, "input_ver": 0,
-    "linkler": [], "hata_mesaj": "", "zaman": {},
-    "sorgu_tetik": False,
-    "sorgu_gtip": "", "sorgu_ulke": "", "sorgu_tarih": "",
+    "kuyruk": [], "idx": 0,
+    "html": None, "pdf": None, "pdf65": None,
+    "pdf_n": 0, "ver": 0, "hata": "",
+    "tetik": False, "tgtip": "", "tulke": "", "ttarih": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-def aktif_veri():
-    idx = st.session_state.aktif_idx
-    if st.session_state.kuyruk and idx < len(st.session_state.kuyruk):
-        return st.session_state.kuyruk[idx]
+def av():
+    i = st.session_state.idx
+    if st.session_state.kuyruk and i < len(st.session_state.kuyruk):
+        return st.session_state.kuyruk[i]
     return {"gtip": "", "ulke": "", "tarih": ""}
 
-def sonraki_satira_gec():
-    st.session_state.aktif_idx      += 1
-    st.session_state.sorgulandı      = False
-    st.session_state.page_html       = None
-    st.session_state.pdf_bytes       = None
-    st.session_state.pdf_bytes_kucuk = None
-    st.session_state.input_ver      += 1
+def temizle_sayfa():
+    st.session_state.html  = None
+    st.session_state.pdf   = None
+    st.session_state.pdf65 = None
 
-# ─── SORGU TETİK (rerun başında) ──────────────────────────────────────────────
-if st.session_state.sorgu_tetik:
-    st.session_state.sorgu_tetik = False
-    gtip  = st.session_state.sorgu_gtip
-    ulke  = st.session_state.sorgu_ulke
-    tarih = st.session_state.sorgu_tarih
-    with st.spinner(f"⏳ {gtip} / {ulke} sorgulanıyor..."):
-        html, pdf, pdf65, hata, zaman = taric_sorgula(gtip, ulke, tarih)
+# ─── SORGU TETİK ──────────────────────────────────────────────────────────────
+if st.session_state.tetik:
+    st.session_state.tetik = False
+    with st.spinner(f"⏳ {st.session_state.tgtip} / {st.session_state.tulke}..."):
+        h, p, p65, hata = taric_sorgula(
+            st.session_state.tgtip,
+            st.session_state.tulke,
+            st.session_state.ttarih
+        )
     if hata:
-        st.session_state.hata_mesaj = hata
+        st.session_state.hata = hata
     else:
-        st.session_state.hata_mesaj      = ""
-        st.session_state.page_html       = html_temizle(html)
-        st.session_state.pdf_bytes       = pdf
-        st.session_state.pdf_bytes_kucuk = pdf65
-        st.session_state.sorgulandı      = True
-        st.session_state.zaman           = zaman
-        st.session_state.linkler         = linkleri_cıkar(html)
+        st.session_state.hata = ""
+        st.session_state.html  = html_temizle(h)
+        st.session_state.pdf   = p
+        st.session_state.pdf65 = p65
 
 # ─── LAYOUT ───────────────────────────────────────────────────────────────────
 sol, sag = st.columns([0.75, 2.25], gap="medium")
 
 with sol:
-    st.markdown("""
-    <div style='padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>
-        <div style='font-size:20px;font-weight:800;'>🛃 TARIC</div>
-        <div style='font-size:10px;color:#999;letter-spacing:2px;'>GÜMRÜK TARİFE SORGULAMA</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='font-size:20px;font-weight:800;padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>🛃 TARIC</div>", unsafe_allow_html=True)
 
-    # Toplu yapıştır
-    with st.expander("📋 Excel'den GTİP, Ülke, Tarih kopyala — bu alana yapıştır",
-                     expanded=len(st.session_state.kuyruk) == 0):
-        yapistir = st.text_area("", height=100, key="yapistir_kutu",
+    # Yapıştır
+    with st.expander("📋 Excel'den kopyala yapıştır", expanded=not st.session_state.kuyruk):
+        t = st.text_area("", height=100, key="txt",
             placeholder="72.07.11.14.00.00\tRusya\t1.01.2024",
             label_visibility="collapsed")
-        satirlar = []
-        if yapistir.strip():
-            satirlar = satirlari_parse_et(yapistir)
-            if satirlar:
-                st.markdown(f"<div style='font-size:11px;color:#166534;font-weight:700;'>✅ {len(satirlar)} satır algılandı</div>", unsafe_allow_html=True)
-        if st.button("📥  Kuyruğa Yükle", use_container_width=True, disabled=len(satirlar) == 0):
-            st.session_state.kuyruk          = satirlar
-            st.session_state.aktif_idx       = 0
-            st.session_state.sorgulandı      = False
-            st.session_state.page_html       = None
-            st.session_state.pdf_bytes       = None
-            st.session_state.pdf_bytes_kucuk = None
-            st.session_state.pdf_sayisi      = 0
-            st.session_state.input_ver      += 1
+        rows = satirlari_parse_et(t) if t.strip() else []
+        if rows:
+            st.markdown(f"<div style='font-size:11px;color:#166534;font-weight:700;'>✅ {len(rows)} satır</div>", unsafe_allow_html=True)
+        if st.button("📥 Kuyruğa Yükle", use_container_width=True, disabled=not rows):
+            st.session_state.kuyruk = rows
+            st.session_state.idx    = 0
+            st.session_state.pdf_n  = 0
+            st.session_state.ver   += 1
+            temizle_sayfa()
             st.rerun()
 
     # İlerleme
     if st.session_state.kuyruk:
-        toplam = len(st.session_state.kuyruk)
-        idx    = st.session_state.aktif_idx
-        pct    = min(int((idx / toplam) * 100), 100)
-        st.markdown(f"""
-        <div style='font-size:11px;color:#6b7280;font-family:JetBrains Mono,monospace;'>
-            {min(idx,toplam)}/{toplam} · {pct}% · 📄{st.session_state.pdf_sayisi} PDF
-        </div>
-        <div class='prog'><div class='prog-bar' style='width:{pct}%'></div></div>
-        """, unsafe_allow_html=True)
+        t = len(st.session_state.kuyruk)
+        i = st.session_state.idx
+        pct = min(int(i/t*100), 100)
+        st.markdown(f"<div style='font-size:11px;color:#6b7280;font-family:monospace;'>{min(i,t)}/{t} · {pct}% · 📄{st.session_state.pdf_n}</div><div class='prog'><div class='prog-bar' style='width:{pct}%'></div></div>", unsafe_allow_html=True)
 
-    # Veri kutuları
-    av  = aktif_veri()
-    ver = st.session_state.input_ver
-    st.markdown("<div style='font-size:10px;color:#555;letter-spacing:1.5px;font-weight:700;margin-bottom:2px;'>SORGULANACAK VERİ</div>", unsafe_allow_html=True)
-    akt_gtip  = st.text_input("GTİP",  value=av["gtip"],  key=f"inp_gtip_{ver}")
-    akt_ulke  = st.text_input("Ülke",  value=av["ulke"],  key=f"inp_ulke_{ver}")
-    akt_tarih = st.text_input("Tarih", value=av["tarih"], key=f"inp_tarih_{ver}")
+    # Kutular
+    a = av()
+    v = st.session_state.ver
+    st.markdown("<div style='font-size:10px;color:#555;font-weight:700;margin-bottom:2px;'>SORGULANACAK VERİ</div>", unsafe_allow_html=True)
+    g = st.text_input("GTİP",  value=a["gtip"],  key=f"g_{v}")
+    u = st.text_input("Ülke",  value=a["ulke"],  key=f"u_{v}")
+    d = st.text_input("Tarih", value=a["tarih"], key=f"d_{v}")
 
-    # Hata / Zamanlama
-    if st.session_state.hata_mesaj:
-        st.error(f"❌ {st.session_state.hata_mesaj}")
-    if st.session_state.zaman:
-        z = st.session_state.zaman
-        st.markdown(
-            f"<div style='font-size:10px;color:#6b7280;font-family:JetBrains Mono,monospace;"
-            f"background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:4px 8px;margin:4px 0;'>"
-            f"⏱ yükleme:{z.get('yukle',0)}s · pdf:{z.get('pdf',0)}s · toplam:{z.get('toplam',0)}s</div>",
-            unsafe_allow_html=True)
+    if st.session_state.hata:
+        st.error(f"❌ {st.session_state.hata}")
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # Sorgula butonu
-    st.markdown("<div class='btn-sorgula'>", unsafe_allow_html=True)
+    # Sorgula
+    st.markdown("<div class='btn-s'>", unsafe_allow_html=True)
     if st.button("🔍  Sorgula", use_container_width=True):
-        st.session_state.sorgu_tetik = True
-        st.session_state.sorgu_gtip  = akt_gtip.strip()
-        st.session_state.sorgu_ulke  = akt_ulke.strip()
-        st.session_state.sorgu_tarih = akt_tarih.strip()
+        st.session_state.tetik  = True
+        st.session_state.tgtip  = g.strip()
+        st.session_state.tulke  = u.strip()
+        st.session_state.ttarih = d.strip()
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
-    # PDF + Devam butonları
-    var_pdf   = bool(st.session_state.pdf_bytes)
-    var_pdf65 = bool(st.session_state.pdf_bytes_kucuk)
-    idx_no    = st.session_state.aktif_idx
-    dosya       = f"{idx_no+1}_{akt_gtip}_{akt_ulke}.pdf"
-    dosya_kucuk = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_65.pdf"
+    # PDF + Devam
+    i    = st.session_state.idx
+    dosya    = f"{i+1}_{g}_{u}.pdf"
+    dosya65  = f"{i+1}_{g}_{u}_65.pdf"
+    var_pdf  = bool(st.session_state.pdf)
+    var_pdf65= bool(st.session_state.pdf65)
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
-        if st.download_button("📄 PDF", data=st.session_state.pdf_bytes or b"",
+        st.markdown("<div class='btn-p'>", unsafe_allow_html=True)
+        if st.download_button("📄 PDF", data=st.session_state.pdf or b"",
                 file_name=dosya, mime="application/pdf",
-                use_container_width=True, disabled=not var_pdf, key="dl_pdf"):
-            st.session_state.pdf_sayisi += 1
+                use_container_width=True, disabled=not var_pdf, key="dp"):
+            st.session_state.pdf_n += 1
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with c2:
-        st.markdown("<div class='btn-pdf65'>", unsafe_allow_html=True)
-        if st.download_button("📄 PDF%65", data=st.session_state.pdf_bytes_kucuk or b"",
-                file_name=dosya_kucuk, mime="application/pdf",
-                use_container_width=True, disabled=not var_pdf65, key="dl_pdf65"):
-            st.session_state.pdf_sayisi += 1
+        st.markdown("<div class='btn-p65'>", unsafe_allow_html=True)
+        if st.download_button("📄 PDF%65", data=st.session_state.pdf65 or b"",
+                file_name=dosya65, mime="application/pdf",
+                use_container_width=True, disabled=not var_pdf65, key="dp65"):
+            st.session_state.pdf_n += 1
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with c3:
-        st.markdown("<div class='btn-devam'>", unsafe_allow_html=True)
-        if st.button("⏭️", use_container_width=True,
-                     help="PDF almadan sonraki", disabled=not var_pdf):
-            sonraki_satira_gec()
+        st.markdown("<div class='btn-d'>", unsafe_allow_html=True)
+        if st.button("⏭️", use_container_width=True, disabled=not var_pdf):
+            st.session_state.idx  += 1
+            st.session_state.ver  += 1
+            temizle_sayfa()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
     # Navigasyon
     if st.session_state.kuyruk:
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-        idx    = st.session_state.aktif_idx
-        toplam = len(st.session_state.kuyruk)
-        cn1, cn2, cn3 = st.columns([1, 2, 1])
-        with cn1:
-            if st.button("◀", use_container_width=True, disabled=idx == 0):
-                st.session_state.aktif_idx      -= 1
-                st.session_state.sorgulandı      = False
-                st.session_state.page_html       = None
-                st.session_state.pdf_bytes       = None
-                st.session_state.pdf_bytes_kucuk = None
-                st.session_state.input_ver      += 1
+        t = len(st.session_state.kuyruk)
+        i = st.session_state.idx
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        n1, n2, n3 = st.columns([1, 2, 1])
+        with n1:
+            if st.button("◀", use_container_width=True, disabled=i==0):
+                st.session_state.idx -= 1
+                st.session_state.ver += 1
+                temizle_sayfa()
                 st.rerun()
-        with cn2:
-            st.markdown(f"<div style='text-align:center;font-size:12px;color:#6b7280;"
-                        f"padding:8px 0;font-family:JetBrains Mono,monospace;'>"
-                        f"{idx+1} / {toplam}</div>", unsafe_allow_html=True)
-        with cn3:
-            if st.button("▶", use_container_width=True, disabled=idx >= toplam - 1):
-                st.session_state.aktif_idx      += 1
-                st.session_state.sorgulandı      = False
-                st.session_state.page_html       = None
-                st.session_state.pdf_bytes       = None
-                st.session_state.pdf_bytes_kucuk = None
-                st.session_state.input_ver      += 1
+        with n2:
+            st.markdown(f"<div style='text-align:center;font-size:12px;color:#6b7280;padding:8px 0;font-family:monospace;'>{i+1}/{t}</div>", unsafe_allow_html=True)
+        with n3:
+            if st.button("▶", use_container_width=True, disabled=i>=t-1):
+                st.session_state.idx += 1
+                st.session_state.ver += 1
+                temizle_sayfa()
                 st.rerun()
-
-    # GTİP linkleri — tıklayınca GTİP kutusuna yaz, Sorgula'ya basmak kalır
-    if st.session_state.linkler:
-        st.markdown("<hr>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:4px;'>🔵 GTİP LİNKLERİ — tıkla → kutulara yazar</div>", unsafe_allow_html=True)
-        for i, link in enumerate(st.session_state.linkler):
-            if st.button(link["metin"], key=f"link_{i}_{ver}", use_container_width=True):
-                # URL'den GTİP ve parametreleri çıkar
-                href = link["url"]
-                # Taric= parametresini al
-                taric_m = re.search(r'[Tt]aric=([^&]+)', href)
-                # SimDate= parametresini al → tarihe çevir
-                simdate_m = re.search(r'SimDate=(\d{8})', href)
-                # Area= parametresini al
-                area_m = re.search(r'Area=([^&]+)', href)
-
-                if taric_m:
-                    yeni_gtip = taric_m.group(1).strip()
-                    # Mevcut ülke ve tarihi koru, sadece GTİP değişsin
-                    yeni_ulke  = area_m.group(1).strip() if area_m else st.session_state.sorgu_ulke
-                    if simdate_m:
-                        sd = simdate_m.group(1)  # YYYYMMDD
-                        yeni_tarih = f"{sd[6:8]}-{sd[4:6]}-{sd[:4]}"
-                    else:
-                        yeni_tarih = st.session_state.sorgu_tarih
-
-                    # Kutulara yaz + sorgula (taric_sorgula form doldurur, submit eder)
-                    st.session_state.sorgu_gtip  = yeni_gtip
-                    st.session_state.sorgu_ulke  = yeni_ulke
-                    st.session_state.sorgu_tarih = yeni_tarih
-                    st.session_state.sorgu_tetik = True
-                    st.session_state.input_ver  += 1
-                    # linkler listesini temizleme — yeni sorgu sonrası güncellenecek
-                    st.rerun()
 
     # Kuyruk listesi
     if st.session_state.kuyruk:
         st.markdown("<hr>", unsafe_allow_html=True)
-        idx = st.session_state.aktif_idx
-        for i, s in enumerate(st.session_state.kuyruk):
-            if i < idx:    cls, ikon = "satir-kart satir-tamam", "✅"
-            elif i == idx: cls, ikon = "satir-kart satir-aktif", "▶"
-            else:          cls, ikon = "satir-kart", f"{i+1}."
-            st.markdown(f"<div class='{cls}'>{ikon} {s['gtip']} / {s['ulke']}</div>",
-                        unsafe_allow_html=True)
-        st.markdown("<div style='height:4px'></div><div class='btn-reset'>", unsafe_allow_html=True)
+        i = st.session_state.idx
+        for j, s in enumerate(st.session_state.kuyruk):
+            if j < i:    cls, ikon = "kart tamam", "✅"
+            elif j == i: cls, ikon = "kart aktif", "▶"
+            else:        cls, ikon = "kart", f"{j+1}."
+            st.markdown(f"<div class='{cls}'>{ikon} {s['gtip']} / {s['ulke']}</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:4px'></div><div class='btn-r'>", unsafe_allow_html=True)
         if st.button("↺ Sıfırla", use_container_width=True):
-            for k in ["kuyruk", "linkler"]:
-                st.session_state[k] = []
-            for k in ["aktif_idx", "pdf_sayisi"]:
-                st.session_state[k] = 0
-            for k in ["page_html", "pdf_bytes", "pdf_bytes_kucuk"]:
-                st.session_state[k] = None
-            st.session_state.sorgulandı = False
-            st.session_state.hata_mesaj = ""
-            st.session_state.zaman      = {}
-            st.session_state.input_ver += 1
+            st.session_state.kuyruk = []
+            st.session_state.idx    = 0
+            st.session_state.pdf_n  = 0
+            st.session_state.ver   += 1
+            st.session_state.hata   = ""
+            temizle_sayfa()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
 with sag:
-    if st.session_state.page_html:
+    if st.session_state.html:
         st.markdown(f"""
-        <div style='display:flex;align-items:center;justify-content:space-between;
-                    padding:10px 16px;background:#1a1a1a;border-radius:6px;margin-bottom:4px;'>
-            <div style='font-family:JetBrains Mono,monospace;font-size:12px;color:#c8b560;font-weight:700;'>
-                🛃 {st.session_state.sorgu_gtip} / {st.session_state.sorgu_ulke}
-            </div>
-            <div style='font-size:11px;color:#555;'>Sol paneldeki GTİP linklerine tıklayabilirsiniz</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.components.v1.html(st.session_state.page_html, height=820, scrolling=True)
+        <div style='padding:10px 16px;background:#1a1a1a;border-radius:6px;margin-bottom:4px;'>
+            <span style='font-family:monospace;font-size:12px;color:#c8b560;font-weight:700;'>
+                🛃 {st.session_state.tgtip} / {st.session_state.tulke}
+            </span>
+        </div>""", unsafe_allow_html=True)
+        st.components.v1.html(st.session_state.html, height=820, scrolling=True)
     else:
         st.markdown("""
         <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    min-height:75vh;text-align:center;background:white;
-                    border-radius:8px;border:1px dashed #d0ccc4;'>
+                    min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
             <div style='font-size:56px;opacity:0.10;margin-bottom:16px;'>🛃</div>
-            <div style='font-size:16px;font-weight:700;color:#bbb;margin-bottom:6px;'>Sorgu Bekleniyor</div>
-            <div style='font-size:12px;color:#ccc;line-height:1.8;'>
-                Sol panelden veri girin veya Excel'den yapıştırın<br>
-                Sorgula'ya basın — sonuç burada görünür
+            <div style='font-size:16px;font-weight:700;color:#bbb;'>Sorgu Bekleniyor</div>
+            <div style='font-size:12px;color:#ccc;margin-top:8px;line-height:1.8;'>
+                Veri girin → Sorgula'ya basın
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
