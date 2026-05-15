@@ -91,12 +91,13 @@ def taric_sorgula(gtip, ulke, tarih):
                 except: page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle", timeout=30000)
             time.sleep(2)
-            html_content = page.content()
-            pdf_bytes    = page.pdf(format="A4", print_background=True)
+            html_content    = page.content()
+            pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
+            pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
             browser.close()
-            return html_content, pdf_bytes, None
+            return html_content, pdf_bytes, pdf_bytes_kucuk, None
     except Exception as e:
-        return None, None, str(e)
+        return None, None, None, str(e)
 
 def linkleri_cıkar(html):
     """
@@ -453,7 +454,7 @@ if sorgula:
     tarih = akt_tarih.strip()
     with sag:
         with st.spinner(f"⏳ {gtip} / {ulke} sorgulanıyor..."):
-            html_content, pdf_bytes, hata = taric_sorgula(gtip, ulke, tarih)
+            html_content, pdf_bytes, pdf_bytes_kucuk, hata = taric_sorgula(gtip, ulke, tarih)
         if hata:
             st.error(f"❌ {hata}")
         else:
