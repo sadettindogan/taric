@@ -73,51 +73,97 @@ def satirlari_parse_et(ham):
     return sonuc
 
 # ─── PLAYWRIGHT ───────────────────────────────────────────────────────────────
-def taric_sorgula(gtip, ulke, tarih):
-    """TEV projesiyle aynı mimari: headless chromium, form doldur, networkidle bekle"""
+# Tek Playwright oturumu — form sayfası açık kalır
+_pw_oturum = {}
+
+def _pw_baslat():
+    """Playwright ve tarayıcıyı başlat, form sayfasını aç"""
+    pw      = sync_playwright().start()
+    browser = pw.chromium.launch(
+        headless=True,
+        executable_path="/usr/bin/chromium",
+        args=["--no-sandbox", "--disable-dev-shm-usage"]
+    )
+    context = browser.new_context()
+    page    = context.new_page()
+    page.goto(
+        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
+        wait_until="domcontentloaded", timeout=15000
+    )
+    _pw_oturum["pw"]      = pw
+    _pw_oturum["browser"] = browser
+    _pw_oturum["page"]    = page
+    return page
+
+def _pw_kapat():
     try:
-        t0 = time.time()
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                executable_path="/usr/bin/chromium",
-                args=["--no-sandbox", "--disable-dev-shm-usage"]
+        if _pw_oturum.get("browser"):
+            _pw_oturum["browser"].close()
+        if _pw_oturum.get("pw"):
+            _pw_oturum["pw"].stop()
+    except: pass
+    _pw_oturum.clear()
+
+def taric_sorgula(gtip, ulke, tarih):
+    """Form sayfası açık kalır — geri git, doldur, submit"""
+    try:
+        t0   = time.time()
+        page = _pw_oturum.get("page")
+
+        if not page:
+            # İlk kez — tarayıcı aç
+            page = _pw_baslat()
+        else:
+            # Sonraki sorgular — geri tuşuna bas, form sayfasına dön
+            try:
+                page.go_back(wait_until="domcontentloaded", timeout=8000)
+                # Form sayfasında mıyız?
+                if not page.query_selector("#taricCode"):
+                    page.goto(
+                        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
+                        wait_until="domcontentloaded", timeout=15000
+                    )
+            except:
+                # Hata olursa form sayfasını yeniden aç
+                try:
+                    page.goto(
+                        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
+                        wait_until="domcontentloaded", timeout=15000
+                    )
+                except:
+                    _pw_kapat()
+                    page = _pw_baslat()
+
+        # Formu doldur
+        page.fill("#taricCode", "")
+        page.fill("#taricCode", gtip.strip())
+        if ulke.strip():
+            try: page.select_option("#taricArea", ulke.strip())
+            except: pass
+        if tarih.strip():
+            page.evaluate(
+                "(t) => { document.querySelector('#SimDatePic').value = t; }",
+                tarih.strip()
             )
-            context = browser.new_context()
-            page    = context.new_page()
 
-            # 1. Form sayfasını aç
-            page.goto(
-                "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
-                wait_until="networkidle", timeout=30000
-            )
+        # Submit
+        page.click("button[value='Retrieve Measures']")
+        page.wait_for_load_state("domcontentloaded", timeout=15000)
+        try:
+            page.wait_for_selector("h1, table", timeout=5000)
+        except: pass
+        t1 = time.time()
 
-            # 2. Formu doldur
-            page.fill("#taricCode", gtip.strip())
-            if ulke.strip():
-                try: page.select_option("#taricArea", ulke.strip())
-                except: pass
-            if tarih.strip():
-                page.evaluate(
-                    "(t) => { document.querySelector('#SimDatePic').value = t; }",
-                    tarih.strip()
-                )
+        html  = page.content()
+        pdf   = page.pdf(format="A4", print_background=True, scale=1.0)
+        pdf65 = page.pdf(format="A4", print_background=True, scale=0.65)
+        t2    = time.time()
 
-            # 3. Submit
-            page.click("button[value='Retrieve Measures']")
-            page.wait_for_load_state("networkidle", timeout=30000)
-            t1 = time.time()
-
-            # 4. HTML + PDF
-            html = page.content()
-            pdf  = page.pdf(format="A4", print_background=True, scale=1.0)
-            pdf65= page.pdf(format="A4", print_background=True, scale=0.65)
-            t2   = time.time()
-            browser.close()
-
+        _pw_oturum["page"] = page
         zaman = {"yukle": round(t1-t0,1), "pdf": round(t2-t1,1), "toplam": round(t2-t0,1)}
         return html, pdf, pdf65, None, zaman
     except Exception as e:
+        _pw_kapat()
         return None, None, None, str(e), {}
 
 def taric_url_ac(url):
@@ -132,7 +178,10 @@ def taric_url_ac(url):
             )
             context = browser.new_context()
             page    = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=30000)
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            try:
+                page.wait_for_selector("table", timeout=5000)
+            except: pass
             t1   = time.time()
             html = page.content()
             pdf  = page.pdf(format="A4", print_background=True, scale=1.0)
@@ -425,12 +474,13 @@ with sol:
                     else:
                         yeni_tarih = st.session_state.sorgu_tarih
 
-                    # Kutulara yaz + otomatik sorgula
+                    # Kutulara yaz + sorgula (taric_sorgula form doldurur, submit eder)
                     st.session_state.sorgu_gtip  = yeni_gtip
                     st.session_state.sorgu_ulke  = yeni_ulke
                     st.session_state.sorgu_tarih = yeni_tarih
                     st.session_state.sorgu_tetik = True
                     st.session_state.input_ver  += 1
+                    # linkler listesini temizleme — yeni sorgu sonrası güncellenecek
                     st.rerun()
 
     # Kuyruk listesi
