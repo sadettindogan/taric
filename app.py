@@ -74,46 +74,68 @@ def satirlari_parse_et(ham):
             })
     return sonuc
 
-def _playwright_fetch(url):
-    """Her sorguda temiz browser aç, işi bitir, kapat. Thread-safe."""
+def _playwright_fetch(url, gtip=None, ulke=None, tarih=None):
+    """
+    Her sorguda temiz browser aç. Thread-safe.
+    gtip/ulke/tarih verilirse form doldurur, yoksa direkt URL'ye gider.
+    """
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
             executable_path="/usr/bin/chromium",
             args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
-                  "--disable-extensions", "--blink-settings=imagesEnabled=false"]
+                  "--disable-extensions"]
         )
         ctx  = browser.new_context(viewport={"width": 1400, "height": 900})
         page = ctx.new_page()
-        t0 = time.time()
-        page.goto(url, wait_until="domcontentloaded", timeout=25000)
-        try:
-            page.wait_for_selector("table", timeout=5000)
-        except:
-            pass
+        t0   = time.time()
+
+        if gtip:
+            # Form doldur → submit
+            FORM_URL = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en"
+            page.goto(FORM_URL, wait_until="domcontentloaded", timeout=25000)
+            page.wait_for_selector("#taricCode", timeout=10000)
+            page.fill("#taricCode", gtip.strip())
+            if ulke and ulke.strip():
+                try: page.select_option("#taricArea", ulke.strip())
+                except: pass
+            if tarih and tarih.strip():
+                page.evaluate("(t) => { document.querySelector('#SimDatePic').value = t; }", tarih.strip())
+            # Submit
+            submitted = False
+            for selector in ["input[value='Retrieve Measures']",
+                             "button[value='Retrieve Measures']",
+                             "input[type='submit']"]:
+                try:
+                    page.click(selector, timeout=3000)
+                    submitted = True
+                    break
+                except:
+                    pass
+            if not submitted:
+                try: page.get_by_text("Retrieve Measures", exact=True).click()
+                except: page.keyboard.press("Enter")
+            page.wait_for_load_state("networkidle", timeout=30000)
+        else:
+            # Direkt URL (GTİP link tıklaması)
+            page.goto(url, wait_until="networkidle", timeout=25000)
+
         t1 = time.time()
         html_content    = page.content()
         pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
         pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
         t2 = time.time()
         browser.close()
-        zaman = f"goto:{t1-t0:.1f}s | pdf:{t2-t1:.1f}s | toplam:{t2-t0:.1f}s"
+
+        zaman = f"⏱ yükleme:{t1-t0:.0f}s | pdf:{t2-t1:.0f}s | toplam:{t2-t0:.0f}s"
         html_content = html_content.replace("</body>",
             f"<div style='position:fixed;bottom:0;left:0;background:#111;color:#c8b560;"
-            f"font:11px monospace;padding:3px 8px;z-index:9999;'>⏱ {zaman}</div></body>")
+            f"font:11px monospace;padding:3px 8px;z-index:9999;'>{zaman}</div></body>")
         return html_content, pdf_bytes, pdf_bytes_kucuk
 
 def taric_sorgula(gtip, ulke, tarih):
     try:
-        simdate = tarih_to_simdate(tarih)
-        url = (
-            f"https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp"
-            f"?Lang=en&SimDate={simdate}&Area={ulke.strip()}"
-            f"&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op="
-            f"&Taric={gtip.strip()}&AdditionalCode=&search_text=goods"
-            f"&textSearch=&LangDescr=en&OrderDir=DESC&show="
-        )
-        html, pdf, pdf65 = _playwright_fetch(url)
+        html, pdf, pdf65 = _playwright_fetch(None, gtip=gtip, ulke=ulke, tarih=tarih)
         return html, pdf, pdf65, None
     except Exception as e:
         return None, None, None, str(e)
