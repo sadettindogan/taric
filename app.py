@@ -39,34 +39,42 @@ def tarih_cevir(girdi):
 def satirlari_parse_et(ham):
     ham = ham.strip()
     satirlar = []
-    if "\t" in ham:
-        for satir in ham.splitlines():
-            satir = satir.strip()
-            if not satir: continue
+    tarih_re = re.compile(r'\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}')
+
+    for satir in ham.splitlines():
+        satir = satir.strip()
+        if not satir: continue
+
+        if "\t" in satir:
+            # Tab ile ayrılmış: GTİP \t ÜLKE \t TARİH
             p = [x.strip() for x in satir.split("\t") if x.strip()]
             if len(p) >= 3:
                 satirlar.append(p[:3])
-    else:
-        tum = [s.strip() for s in ham.splitlines() if s.strip()]
-        i = 0
-        while i < len(tum):
-            if i + 2 < len(tum):
-                satirlar.append([tum[i], tum[i+1], tum[i+2]])
-                i += 3
-            elif i + 1 < len(tum):
-                sonraki = tum[i+1]
-                m = re.search(r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})', sonraki)
+            elif len(p) == 2:
+                # Son parçada tarih var mı?
+                m = tarih_re.search(p[1])
                 if m:
-                    satirlar.append([tum[i], sonraki[:m.start()].strip(), m.group(1)])
-                i += 2
-            else:
-                break
+                    satirlar.append([p[0], p[1][:m.start()].strip(), m.group()])
+        else:
+            # Boşluk ile ayrılmış — tarihi sonda ara
+            m = tarih_re.search(satir)
+            if m:
+                tarih_str = m.group()
+                kalan     = satir[:m.start()].strip()
+                # GTİP ilk kelime(ler) — noktalı sayı
+                gtip_m = re.match(r'[\d.]+', kalan)
+                if gtip_m:
+                    gtip_str = kalan[:gtip_m.end()].strip()
+                    ulke_str = kalan[gtip_m.end():].strip()
+                    satirlar.append([gtip_str, ulke_str, tarih_str])
+
     sonuc = []
     for p in satirlar:
-        sonuc.append({
-            "gtip_ham": p[0], "ulke_ham": p[1], "tarih_ham": p[2],
-            "gtip": gtip_cevir(p[0]), "ulke": ulke_cevir(p[1]), "tarih": tarih_cevir(p[2]),
-        })
+        if len(p) >= 3:
+            sonuc.append({
+                "gtip_ham": p[0], "ulke_ham": p[1], "tarih_ham": p[2],
+                "gtip": gtip_cevir(p[0]), "ulke": ulke_cevir(p[1]), "tarih": tarih_cevir(p[2]),
+            })
     return sonuc
 
 def taric_sorgula(gtip, ulke, tarih):
@@ -215,10 +223,18 @@ section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
 .block-container{padding:12px 16px!important;max-width:100%!important;}
 [data-testid="stTextArea"] textarea{
-    background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
-    color:#1a1a1a!important;font-family:'JetBrains Mono',monospace!important;
-    font-size:10.5px!important;padding:6px 8px!important;white-space:pre!important;
-    overflow-x:auto!important;word-break:keep-all!important;
+    background:#fafafa!important;
+    border:1px solid #e5e7eb!important;
+    border-radius:4px!important;
+    color:#1a1a1a!important;
+    font-family:'JetBrains Mono',monospace!important;
+    font-size:10.5px!important;
+    padding:6px 8px!important;
+    white-space:pre!important;
+    overflow-x:auto!important;
+    word-break:keep-all!important;
+    tab-size:4!important;
+    -moz-tab-size:4!important;
 }
 [data-testid="stTextInput"] input{
     background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
