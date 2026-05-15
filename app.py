@@ -115,10 +115,19 @@ def _playwright_fetch(url, gtip=None, ulke=None, tarih=None):
             if not submitted:
                 try: page.get_by_text("Retrieve Measures", exact=True).click()
                 except: page.keyboard.press("Enter")
-            page.wait_for_load_state("networkidle", timeout=30000)
+            # networkidle yerine içerik gelmesini bekle — çok daha hızlı
+            page.wait_for_load_state("domcontentloaded", timeout=30000)
+            try:
+                page.wait_for_selector("h1, table, .measures", timeout=8000)
+            except:
+                pass
         else:
             # Direkt URL (GTİP link tıklaması)
-            page.goto(url, wait_until="networkidle", timeout=25000)
+            page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            try:
+                page.wait_for_selector("table", timeout=5000)
+            except:
+                pass
 
         t1 = time.time()
         html_content    = page.content()
