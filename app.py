@@ -74,38 +74,19 @@ def satirlari_parse_et(ham):
             })
     return sonuc
 
-@st.cache_resource
-def get_browser():
-    pw = sync_playwright().start()
-    browser = pw.chromium.launch(
-        headless=True,
-        executable_path="/usr/bin/chromium",
-        args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
-              "--disable-extensions", "--blink-settings=imagesEnabled=false"]
-    )
-    return pw, browser
-
-_sayfa = {}
-
-def taric_sorgula(gtip, ulke, tarih):
-    try:
-        _, browser = get_browser()
-        simdate = tarih_to_simdate(tarih)
-        url = (
-            f"https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp"
-            f"?Lang=en&SimDate={simdate}&Area={ulke.strip()}"
-            f"&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op="
-            f"&Taric={gtip.strip()}&AdditionalCode=&search_text=goods"
-            f"&textSearch=&LangDescr=en&OrderDir=DESC&show="
+def _playwright_fetch(url):
+    """Her sorguda temiz browser aç, işi bitir, kapat. Thread-safe."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            executable_path="/usr/bin/chromium",
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+                  "--disable-extensions", "--blink-settings=imagesEnabled=false"]
         )
-        page = _sayfa.get("page")
-        if not page:
-            ctx  = browser.new_context(viewport={"width": 1400, "height": 900})
-            page = ctx.new_page()
-            _sayfa["page"] = page
-
+        ctx  = browser.new_context(viewport={"width": 1400, "height": 900})
+        page = ctx.new_page()
         t0 = time.time()
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        page.goto(url, wait_until="domcontentloaded", timeout=25000)
         try:
             page.wait_for_selector("table", timeout=5000)
         except:
@@ -115,34 +96,33 @@ def taric_sorgula(gtip, ulke, tarih):
         pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
         pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
         t2 = time.time()
+        browser.close()
         zaman = f"goto:{t1-t0:.1f}s | pdf:{t2-t1:.1f}s | toplam:{t2-t0:.1f}s"
         html_content = html_content.replace("</body>",
             f"<div style='position:fixed;bottom:0;left:0;background:#111;color:#c8b560;"
             f"font:11px monospace;padding:3px 8px;z-index:9999;'>⏱ {zaman}</div></body>")
-        return html_content, pdf_bytes, pdf_bytes_kucuk, None
+        return html_content, pdf_bytes, pdf_bytes_kucuk
+
+def taric_sorgula(gtip, ulke, tarih):
+    try:
+        simdate = tarih_to_simdate(tarih)
+        url = (
+            f"https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp"
+            f"?Lang=en&SimDate={simdate}&Area={ulke.strip()}"
+            f"&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op="
+            f"&Taric={gtip.strip()}&AdditionalCode=&search_text=goods"
+            f"&textSearch=&LangDescr=en&OrderDir=DESC&show="
+        )
+        html, pdf, pdf65 = _playwright_fetch(url)
+        return html, pdf, pdf65, None
     except Exception as e:
-        _sayfa["page"] = None
         return None, None, None, str(e)
 
 def taric_url_ac(url):
     try:
-        _, browser = get_browser()
-        page = _sayfa.get("page")
-        if not page:
-            ctx  = browser.new_context(viewport={"width": 1400, "height": 900})
-            page = ctx.new_page()
-            _sayfa["page"] = page
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
-        try:
-            page.wait_for_selector("table", timeout=5000)
-        except:
-            pass
-        html_content    = page.content()
-        pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
-        pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
-        return html_content, pdf_bytes, pdf_bytes_kucuk, None
+        html, pdf, pdf65 = _playwright_fetch(url)
+        return html, pdf, pdf65, None
     except Exception as e:
-        _sayfa["page"] = None
         return None, None, None, str(e)
 
 def linkleri_cıkar(html):
