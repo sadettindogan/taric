@@ -127,25 +127,22 @@ def _playwright_fetch(url, gtip=None, ulke=None, tarih=None):
         t2 = time.time()
         browser.close()
 
-        zaman = f"⏱ yükleme:{t1-t0:.0f}s | pdf:{t2-t1:.0f}s | toplam:{t2-t0:.0f}s"
-        html_content = html_content.replace("</body>",
-            f"<div style='position:fixed;bottom:0;left:0;background:#111;color:#c8b560;"
-            f"font:11px monospace;padding:3px 8px;z-index:9999;'>{zaman}</div></body>")
-        return html_content, pdf_bytes, pdf_bytes_kucuk
+        zaman = {"yukle": round(t1-t0,1), "pdf": round(t2-t1,1), "toplam": round(t2-t0,1)}
+        return html_content, pdf_bytes, pdf_bytes_kucuk, zaman
 
 def taric_sorgula(gtip, ulke, tarih):
     try:
-        html, pdf, pdf65 = _playwright_fetch(None, gtip=gtip, ulke=ulke, tarih=tarih)
-        return html, pdf, pdf65, None
+        html, pdf, pdf65, zaman = _playwright_fetch(None, gtip=gtip, ulke=ulke, tarih=tarih)
+        return html, pdf, pdf65, None, zaman
     except Exception as e:
-        return None, None, None, str(e)
+        return None, None, None, str(e), {}
 
 def taric_url_ac(url):
     try:
-        html, pdf, pdf65 = _playwright_fetch(url)
-        return html, pdf, pdf65, None
+        html, pdf, pdf65, zaman = _playwright_fetch(url)
+        return html, pdf, pdf65, None, zaman
     except Exception as e:
-        return None, None, None, str(e)
+        return None, None, None, str(e), {}
 
 def linkleri_cıkar(html):
     from bs4 import BeautifulSoup
@@ -219,7 +216,7 @@ for k, v in {
     "kuyruk": [], "aktif_idx": 0,
     "page_html": None, "pdf_bytes": None, "pdf_bytes_kucuk": None,
     "sorgulandı": False, "pdf_sayisi": 0, "input_ver": 0,
-    "linkler": [], "hata_mesaj": "",
+    "linkler": [], "hata_mesaj": "", "zaman": {},
     # Sorgu tetikleyici — buton yerine session_state ile
     "sorgu_tetik": False,
     "sorgu_gtip": "", "sorgu_ulke": "", "sorgu_tarih": "",
@@ -248,7 +245,7 @@ if st.session_state.sorgu_tetik:
     ulke  = st.session_state.sorgu_ulke
     tarih = st.session_state.sorgu_tarih
     with st.spinner(f"⏳ {gtip} / {ulke} sorgulanıyor..."):
-        html_content, pdf_bytes, pdf_bytes_kucuk, hata = taric_sorgula(gtip, ulke, tarih)
+        html_content, pdf_bytes, pdf_bytes_kucuk, hata, zaman = taric_sorgula(gtip, ulke, tarih)
     if hata:
         st.session_state.hata_mesaj = hata
     else:
@@ -258,6 +255,7 @@ if st.session_state.sorgu_tetik:
         st.session_state.pdf_bytes_kucuk = pdf_bytes_kucuk
         st.session_state.sorgulandı      = True
         st.session_state.linkler         = linkleri_cıkar(html_content)
+        st.session_state.zaman           = zaman
 
 # ─── LAYOUT ───────────────────────────────────────────────────────────────────
 sol, sag = st.columns([0.75, 2.25], gap="medium")
@@ -311,6 +309,12 @@ with sol:
 
     if st.session_state.hata_mesaj:
         st.error(f"❌ {st.session_state.hata_mesaj}")
+    if st.session_state.get("zaman"):
+        z = st.session_state.zaman
+        st.markdown(f"""<div style='font-size:10px;color:#6b7280;font-family:JetBrains Mono,monospace;
+            background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:4px 8px;margin:4px 0;'>
+            ⏱ yükleme: {z.get('yukle',0)}s · pdf: {z.get('pdf',0)}s · toplam: {z.get('toplam',0)}s
+            </div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
@@ -388,7 +392,7 @@ with sol:
         for i, link in enumerate(st.session_state.linkler):
             if st.button(link["metin"], key=f"link_{i}_{ver}", use_container_width=True):
                 with st.spinner(f"⏳ {link['metin']} açılıyor..."):
-                    h, pdf, pdf_k, hata = taric_url_ac(link["url"])
+                    h, pdf, pdf_k, hata, zaman = taric_url_ac(link["url"])
                 if not hata:
                     st.session_state.page_html       = html_temizle(h)
                     st.session_state.pdf_bytes       = pdf
