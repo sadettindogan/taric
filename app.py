@@ -280,7 +280,7 @@ def sonraki_satira_gec():
     st.session_state.input_ver += 1  # input'ları yenile
 
 # ─── LAYOUT ──────────────────────────────────────────────────────────────────
-sol, sag = st.columns([0.5, 2.5], gap="medium")
+sol, sag = st.columns([0.62, 2.38], gap="medium")
 
 with sol:
     st.markdown("""
