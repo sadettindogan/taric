@@ -77,6 +77,17 @@ def satirlari_parse_et(ham):
             })
     return sonuc
 
+@st.cache_resource
+def get_browser():
+    """Tarayıcıyı bir kez aç, oturumu boyunca açık tut"""
+    pw      = sync_playwright().start()
+    browser = pw.chromium.launch(
+        headless=True,
+        executable_path="/usr/bin/chromium",
+        args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+    )
+    return pw, browser
+
 def taric_sorgula(gtip, ulke, tarih):
     try:
         with sync_playwright() as p:
@@ -279,7 +290,6 @@ for k, v in {
     "sorgulandı": False, "pdf_sayisi": 0,
     "input_ver": 0,
     "navigate_url": "",
-    "url_gecmisi": [],
     "linkler": [],
     "pdf_bytes_kucuk": None,
 }.items():
@@ -449,8 +459,7 @@ with sol:
                     with st.spinner(f"⏳ {metin} açılıyor..."):
                         h, pdf, pdf_k, hata = taric_url_ac(link["url"])
                     if not hata:
-                        st.session_state.url_gecmisi.append(st.session_state.navigate_url or "")
-                        st.session_state.navigate_url     = link["url"]
+                        st.session_state.navigate_url = link["url"]
                         st.session_state.page_html        = html_temizle(h)
                         st.session_state.pdf_bytes        = pdf
                         st.session_state.pdf_bytes_kucuk  = pdf_k
