@@ -28,6 +28,13 @@ def gtip_cevir(girdi):
         temiz = temiz[:-1]
     return temiz
 
+def tarih_to_simdate(tarih):
+    """06-12-2024 → 20241206 (TARIC SimDate formatı)"""
+    p = tarih.strip().split('-')
+    if len(p) == 3:
+        return p[2] + p[1] + p[0]
+    return tarih
+
 def tarih_cevir(girdi):
     girdi = girdi.strip()
     parcalar = re.split(r'[.\-/]', girdi)
