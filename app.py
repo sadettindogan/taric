@@ -216,7 +216,9 @@ header{display:none!important;}
 .block-container{padding:12px 16px!important;max-width:100%!important;}
 [data-testid="stTextArea"] textarea{
     background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
-    color:#1a1a1a!important;font-family:'JetBrains Mono',monospace!important;font-size:12px!important;padding:8px 10px!important;
+    color:#1a1a1a!important;font-family:'JetBrains Mono',monospace!important;
+    font-size:10.5px!important;padding:6px 8px!important;white-space:pre!important;
+    overflow-x:auto!important;word-break:keep-all!important;
 }
 [data-testid="stTextInput"] input{
     background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
@@ -280,7 +282,7 @@ def sonraki_satira_gec():
     st.session_state.input_ver += 1  # input'ları yenile
 
 # ─── LAYOUT ──────────────────────────────────────────────────────────────────
-sol, sag = st.columns([0.62, 2.38], gap="medium")
+sol, sag = st.columns([0.75, 2.25], gap="medium")
 
 with sol:
     st.markdown("""
