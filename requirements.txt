@@ -1,0 +1,5 @@
+streamlit
+playwright
+pypdf
+openpyxl
+beautifulsoup4
