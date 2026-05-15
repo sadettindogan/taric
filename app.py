@@ -305,8 +305,7 @@ with sol:
     var_pdf65   = bool(st.session_state.pdf_bytes_kucuk)
 
     st.markdown("<div class='btn-sorgula'>", unsafe_allow_html=True)
-    sorgula = st.button("🔍  Sorgula", use_container_width=True,
-                        disabled=not bool(akt_gtip.strip()))
+    sorgula = st.button("🔍  Sorgula", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
