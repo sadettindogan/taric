@@ -91,7 +91,14 @@ def get_browser():
     browser = pw.chromium.launch(
         headless=True,
         executable_path="/usr/bin/chromium",
-        args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-extensions",
+            "--disable-images",        # resimleri yükleme — hız için
+            "--blink-settings=imagesEnabled=false",
+        ]
     )
     return pw, browser
 
