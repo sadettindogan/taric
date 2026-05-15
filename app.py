@@ -520,29 +520,15 @@ if sorgula:
 # ─── SAĞ PANEL ───────────────────────────────────────────────────────────────
 with sag:
     if st.session_state.page_html:
-        # Geri butonu
-        geri_col, baslik_col = st.columns([1, 5])
-        with geri_col:
-            if st.button("◀ Geri", use_container_width=True,
-                         disabled=len(st.session_state.url_gecmisi) == 0):
-                onceki_url = st.session_state.url_gecmisi.pop()
-                with st.spinner("Yükleniyor..."):
-                    h, pdf, pdf_k, hata = taric_url_ac(onceki_url)
-                if not hata:
-                    st.session_state.page_html       = html_temizle(h)
-                    st.session_state.pdf_bytes       = pdf
-                    st.session_state.pdf_bytes_kucuk = pdf_k
-                st.rerun()
-        with baslik_col:
-            st.markdown(f"""
-            <div style='display:flex;align-items:center;justify-content:space-between;
-                        padding:10px 16px;background:#1a1a1a;border-radius:6px;'>
-                <div style='font-family:JetBrains Mono,monospace;font-size:12px;color:#c8b560;font-weight:700;'>
-                    🛃 {akt_gtip} / {akt_ulke}
-                </div>
-                <div style='font-size:11px;color:#555;'>Mavi linklere tıklayabilirsiniz</div>
+        st.markdown(f"""
+        <div style='display:flex;align-items:center;justify-content:space-between;
+                    padding:10px 16px;background:#1a1a1a;border-radius:6px;margin-bottom:4px;'>
+            <div style='font-family:JetBrains Mono,monospace;font-size:12px;color:#c8b560;font-weight:700;'>
+                🛃 {akt_gtip} / {akt_ulke}
             </div>
-            """, unsafe_allow_html=True)
+            <div style='font-size:11px;color:#555;'>Sol paneldeki GTİP linklerine tıklayabilirsiniz</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Canlı HTML render — st.components.v1.html iframe içinde çalışır
         # postMessage dinleyici — linke tıklanınca URL'yi yakala
