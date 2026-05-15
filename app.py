@@ -400,23 +400,38 @@ with sol:
                 st.session_state.input_ver      += 1
                 st.rerun()
 
-    # GTİP linkleri
+    # GTİP linkleri — tıklayınca GTİP kutusuna yaz, Sorgula'ya basmak kalır
     if st.session_state.linkler:
         st.markdown("<hr>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:4px;'>🔵 GTİP LİNKLERİ</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:4px;'>🔵 GTİP LİNKLERİ — tıkla → kutulara yazar</div>", unsafe_allow_html=True)
         for i, link in enumerate(st.session_state.linkler):
             if st.button(link["metin"], key=f"link_{i}_{ver}", use_container_width=True):
-                with st.spinner(f"⏳ {link['metin']} açılıyor..."):
-                    h, pdf, pdf65, hata, zaman = taric_url_ac(link["url"])
-                if not hata:
-                    st.session_state.page_html       = html_temizle(h)
-                    st.session_state.pdf_bytes       = pdf
-                    st.session_state.pdf_bytes_kucuk = pdf65
-                    st.session_state.zaman           = zaman
-                    st.session_state.linkler         = linkleri_cıkar(h)
-                else:
-                    st.session_state.hata_mesaj = hata
-                st.rerun()
+                # URL'den GTİP ve parametreleri çıkar
+                href = link["url"]
+                # Taric= parametresini al
+                taric_m = re.search(r'[Tt]aric=([^&]+)', href)
+                # SimDate= parametresini al → tarihe çevir
+                simdate_m = re.search(r'SimDate=(\d{8})', href)
+                # Area= parametresini al
+                area_m = re.search(r'Area=([^&]+)', href)
+
+                if taric_m:
+                    yeni_gtip = taric_m.group(1).strip()
+                    # Mevcut ülke ve tarihi koru, sadece GTİP değişsin
+                    yeni_ulke  = area_m.group(1).strip() if area_m else st.session_state.sorgu_ulke
+                    if simdate_m:
+                        sd = simdate_m.group(1)  # YYYYMMDD
+                        yeni_tarih = f"{sd[6:8]}-{sd[4:6]}-{sd[:4]}"
+                    else:
+                        yeni_tarih = st.session_state.sorgu_tarih
+
+                    # Kutulara yaz + otomatik sorgula
+                    st.session_state.sorgu_gtip  = yeni_gtip
+                    st.session_state.sorgu_ulke  = yeni_ulke
+                    st.session_state.sorgu_tarih = yeni_tarih
+                    st.session_state.sorgu_tetik = True
+                    st.session_state.input_ver  += 1
+                    st.rerun()
 
     # Kuyruk listesi
     if st.session_state.kuyruk:
