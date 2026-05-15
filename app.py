@@ -352,10 +352,11 @@ with sol:
     with c1:
         st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
         if st.download_button(
-            "📄 PDF", 
+            "📄 PDF",
             data=st.session_state.pdf_bytes or b"",
             file_name=dosya, mime="application/pdf",
-            use_container_width=True, disabled=not var_pdf
+            use_container_width=True, disabled=not var_pdf,
+            key="dl_pdf_normal"
         ):
             st.session_state.pdf_sayisi += 1
             sonraki_satira_gec()
@@ -364,14 +365,15 @@ with sol:
     with c2:
         st.markdown("<div class='btn-pdf65'>", unsafe_allow_html=True)
         if st.download_button(
-            "📄 %65",
+            "📄 PDF%65",
             data=st.session_state.pdf_bytes_kucuk or b"",
             file_name=dosya_kucuk, mime="application/pdf",
             use_container_width=True, disabled=not var_pdf65,
-            help="Kağıt tasarruflu — %65 ölçek"
+            help="Kağıt tasarruflu — %65 ölçek",
+            key="dl_pdf_kucuk"
         ):
+            # Sadece PDF sayısını artır, sıra ATLAMA
             st.session_state.pdf_sayisi += 1
-            sonraki_satira_gec()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with c3:
