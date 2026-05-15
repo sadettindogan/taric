@@ -223,18 +223,20 @@ section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
 .block-container{padding:12px 16px!important;max-width:100%!important;}
 [data-testid="stTextArea"] textarea{
-    background:#fafafa!important;
-    border:1px solid #e5e7eb!important;
+    background:#ffffff!important;
+    border:1px solid #9ca3af!important;
     border-radius:4px!important;
-    color:#1a1a1a!important;
+    color:#111827!important;
     font-family:'JetBrains Mono',monospace!important;
-    font-size:10.5px!important;
-    padding:6px 8px!important;
+    font-size:10px!important;
+    line-height:1.8!important;
+    padding:8px 10px!important;
     white-space:pre!important;
     overflow-x:auto!important;
     word-break:keep-all!important;
-    tab-size:4!important;
-    -moz-tab-size:4!important;
+    tab-size:16!important;
+    -moz-tab-size:16!important;
+    text-align:left!important;
 }
 [data-testid="stTextInput"] input{
     background:white!important;border:1px solid #d4c97a!important;border-radius:4px!important;
@@ -310,7 +312,7 @@ with sol:
 
     # ── TOPLU VERİ ───────────────────────────────────────────────────────────
     with st.expander("📋 Excel'den Toplu Yapıştır", expanded=len(st.session_state.kuyruk)==0):
-        yapistir = st.text_area("GTİP · Ülke · Tarih (her satır bir kayıt)",
+        yapistir = st.text_area("Excel'den GTİP, Ülke, Tarih kopyala — bu alana yapıştır",
             placeholder="72.07.11.14.00.00\tRusya\t1.01.2024\n72.07.12.10.00.00\tPakistan\t11.12.2024",
             height=100, key="yapistir_kutu")
         satirlar = []
