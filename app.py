@@ -399,19 +399,18 @@ with sol:
 
 # ─── SORGU ────────────────────────────────────────────────────────────────────
 if sorgula:
-    with sag:
-        with st.spinner(f"⏳ {akt_gtip.strip()} / {akt_ulke.strip()} sorgulanıyor..."):
-            html_content, pdf_bytes, pdf_bytes_kucuk, hata = taric_sorgula(
-                akt_gtip.strip(), akt_ulke.strip(), akt_tarih.strip())
-        if hata:
-            st.error(f"❌ {hata}")
-        else:
-            st.session_state.page_html       = html_temizle(html_content)
-            st.session_state.pdf_bytes       = pdf_bytes
-            st.session_state.pdf_bytes_kucuk = pdf_bytes_kucuk
-            st.session_state.sorgulandı      = True
-            st.session_state.linkler         = linkleri_cıkar(html_content)
-    st.rerun()
+    with st.spinner(f"⏳ {akt_gtip.strip()} / {akt_ulke.strip()} sorgulanıyor..."):
+        html_content, pdf_bytes, pdf_bytes_kucuk, hata = taric_sorgula(
+            akt_gtip.strip(), akt_ulke.strip(), akt_tarih.strip())
+    if hata:
+        st.error(f"❌ {hata}")
+    else:
+        st.session_state.page_html       = html_temizle(html_content)
+        st.session_state.pdf_bytes       = pdf_bytes
+        st.session_state.pdf_bytes_kucuk = pdf_bytes_kucuk
+        st.session_state.sorgulandı      = True
+        st.session_state.linkler         = linkleri_cıkar(html_content)
+        st.rerun()
 
 # ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
 with sag:
