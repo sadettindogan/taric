@@ -359,7 +359,6 @@ with sol:
             key="dl_pdf_normal"
         ):
             st.session_state.pdf_sayisi += 1
-            sonraki_satira_gec()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with c2:
