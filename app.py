@@ -344,12 +344,14 @@ with sol:
     # ── PDF AL + DEVAM ET (yan yana, küçük) ──────────────────────────────────
     if st.session_state.sorgulandı:
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
+        idx_no      = st.session_state.aktif_idx
+        dosya       = f"{idx_no+1}_{akt_gtip}_{akt_ulke}.pdf"
+        dosya_kucuk = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_65.pdf"
+        c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
-            dosya = f"{st.session_state.aktif_idx+1}_{akt_gtip}_{akt_ulke}.pdf"
             if st.session_state.pdf_bytes and st.download_button(
-                "📄 PDF Al", data=st.session_state.pdf_bytes,
+                "📄 PDF", data=st.session_state.pdf_bytes,
                 file_name=dosya, mime="application/pdf", use_container_width=True
             ):
                 st.session_state.pdf_sayisi += 1
@@ -357,8 +359,19 @@ with sol:
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
         with c2:
+            st.markdown("<div class='btn-pdf65'>", unsafe_allow_html=True)
+            if st.session_state.pdf_bytes_kucuk and st.download_button(
+                "📄 %65", data=st.session_state.pdf_bytes_kucuk,
+                file_name=dosya_kucuk, mime="application/pdf", use_container_width=True,
+                help="Kağıt tasarruflu — %65 ölçek"
+            ):
+                st.session_state.pdf_sayisi += 1
+                sonraki_satira_gec()
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+        with c3:
             st.markdown("<div class='btn-devam'>", unsafe_allow_html=True)
-            if st.button("⏭️ Devam", use_container_width=True):
+            if st.button("⏭️", use_container_width=True, help="PDF almadan devam"):
                 sonraki_satira_gec()
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
