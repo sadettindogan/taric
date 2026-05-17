@@ -358,42 +358,32 @@ with orta:
 with sag:
     if st.session_state.sonuc_url:
         url = st.session_state.sonuc_url
-
-        # Adres çubuğu görünümü + buton
         st.markdown(
             f"""
-            <div class='web-panel-baslik'>🌐 AB TARIC &nbsp;·&nbsp; 
+            <div class='web-panel-baslik'>🌐 AB TARIC &nbsp;·&nbsp;
             <span style='color:#aaa;font-weight:400;font-size:11px;'>Tıklanabilir Sayfa</span></div>
-            <div class='web-panel-bar'>
-                🔒 <span style='color:#1d4ed8;'>{url[:60]}{'...' if len(url)>60 else ''}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # Küçültülmüş web sayfası — zoom ile
-        st.markdown(
-            f"""
-            <div style='width:100%;height:820px;overflow:hidden;border:1px solid #d0ccc4;border-top:none;border-radius:0 0 6px 6px;background:white;'>
-                <div style='transform:scale(0.75);transform-origin:top left;width:133%;height:133%;'>
-                    <iframe 
-                        src="{url}"
-                        width="100%"
-                        height="1093px"
-                        style="border:none;"
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    ></iframe>
+            <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
+                        min-height:75vh;background:white;border:1px solid #d0ccc4;border-top:none;
+                        border-radius:0 0 8px 8px;text-align:center;padding:32px;'>
+                <div style='font-size:52px;margin-bottom:20px;'>🌐</div>
+                <div style='font-size:17px;font-weight:800;color:#1a1a1a;margin-bottom:6px;'>
+                    {st.session_state.tgtip} / {st.session_state.tulke}
                 </div>
-            </div>
-            <div style='margin-top:6px;'>
+                <div style='font-size:11px;color:#999;margin-bottom:32px;font-family:monospace;'>
+                    {url[:55]}{'...' if len(url)>55 else ''}
+                </div>
                 <a href="{url}" target="_blank"
-                   style='display:inline-block;background:#7c3aed;color:white;padding:8px 18px;
-                          border-radius:5px;font-size:12px;font-weight:700;text-decoration:none;'>
-                    ↗ Tam Ekran Aç
+                   style='display:inline-block;background:#1d4ed8;color:white;
+                          padding:16px 40px;border-radius:8px;font-size:16px;
+                          font-weight:800;text-decoration:none;letter-spacing:0.5px;
+                          box-shadow:0 4px 14px rgba(29,78,216,0.35);'>
+                    🌐 &nbsp; Sayfayı Aç
                 </a>
-                <span style='font-size:11px;color:#999;margin-left:10px;'>
-                    Toggle · Tıklama · Tam özellik
-                </span>
+                <div style='font-size:11px;color:#bbb;margin-top:20px;line-height:1.8;'>
+                    ✅ Tüm TARIC kodları tıklanabilir<br>
+                    ✅ Toggle / açılır-kapanır çalışır<br>
+                    ✅ Tam AB TARIC deneyimi
+                </div>
             </div>
             """,
             unsafe_allow_html=True
