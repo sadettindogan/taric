@@ -211,7 +211,7 @@ if st.session_state.tetik:
         get_browser.clear()
 
 # ─── LAYOUT: 3 KOLON (sol panel | iframe | web sayfası) ───────────────────────
-sol, orta, sag = st.columns([0.65, 1.5, 1.5], gap="small")
+sol, orta = st.columns([0.65, 2.35], gap="medium")
 
 # ══════════════════════════════════════════════════════
 # SOL PANEL
@@ -334,66 +334,27 @@ with sol:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════
-# ORTA: İFRAME (Mevcut HTML görünümü)
+# ORTA: İFRAME + otomatik sekme aç
 # ══════════════════════════════════════════════════════
 with orta:
     if st.session_state.html:
         st.markdown(
-            f"<div class='web-panel-baslik'>🛃 {st.session_state.tgtip} / {st.session_state.tulke} &nbsp;·&nbsp; <span style='color:#aaa;font-weight:400;font-size:11px;'>Önizleme</span></div>",
+            f"<div class='web-panel-baslik'>🛃 {st.session_state.tgtip} / {st.session_state.tulke}</div>",
             unsafe_allow_html=True
         )
         st.components.v1.html(st.session_state.html, height=820, scrolling=True)
-    else:
-        st.markdown("""
-        <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
-            <div style='font-size:48px;opacity:0.10;'>📋</div>
-            <div style='font-size:14px;font-weight:700;color:#bbb;margin-top:16px;'>Önizleme</div>
-            <div style='font-size:11px;color:#ccc;margin-top:8px;'>Sorgu sonrası burada görünür</div>
-        </div>""", unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════
-# SAĞ: GERÇEK WEB SAYFASI (popup boyutunda açılır)
-# ══════════════════════════════════════════════════════
-with sag:
-    if st.session_state.sonuc_url:
-        url = st.session_state.sonuc_url
-        st.markdown(
-            f"""
-            <div class='web-panel-baslik'>🌐 AB TARIC &nbsp;·&nbsp;
-            <span style='color:#aaa;font-weight:400;font-size:11px;'>Tıklanabilir Sayfa</span></div>
-            <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
-                        min-height:75vh;background:white;border:1px solid #d0ccc4;border-top:none;
-                        border-radius:0 0 8px 8px;text-align:center;padding:32px;'>
-                <div style='font-size:52px;margin-bottom:20px;'>🌐</div>
-                <div style='font-size:17px;font-weight:800;color:#1a1a1a;margin-bottom:6px;'>
-                    {st.session_state.tgtip} / {st.session_state.tulke}
-                </div>
-                <div style='font-size:11px;color:#999;margin-bottom:32px;font-family:monospace;'>
-                    {url[:55]}{'...' if len(url)>55 else ''}
-                </div>
-                <a href="{url}" target="_blank"
-                   style='display:inline-block;background:#1d4ed8;color:white;
-                          padding:16px 40px;border-radius:8px;font-size:16px;
-                          font-weight:800;text-decoration:none;letter-spacing:0.5px;
-                          box-shadow:0 4px 14px rgba(29,78,216,0.35);'>
-                    🌐 &nbsp; Sayfayı Aç
-                </a>
-                <div style='font-size:11px;color:#bbb;margin-top:20px;line-height:1.8;'>
-                    ✅ Tüm TARIC kodları tıklanabilir<br>
-                    ✅ Toggle / açılır-kapanır çalışır<br>
-                    ✅ Tam AB TARIC deneyimi
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        # Sorgu sonrası AB sitesini otomatik yeni sekmede aç
+        if st.session_state.sonuc_url:
+            st.components.v1.html(
+                f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
+                height=0
+            )
     else:
         st.markdown("""
         <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
                     min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
-            <div style='font-size:48px;opacity:0.10;'>🌐</div>
-            <div style='font-size:14px;font-weight:700;color:#bbb;margin-top:16px;'>Web Sayfası</div>
-            <div style='font-size:11px;color:#ccc;margin-top:8px;'>Sorgu sonrası AB sitesi burada açılır</div>
-            <div style='font-size:11px;color:#ccc;margin-top:4px;'>Tüm linkler ve toggle'lar çalışır</div>
+            <div style='font-size:56px;opacity:0.10;'>🛃</div>
+            <div style='font-size:16px;font-weight:700;color:#bbb;margin-top:16px;'>Sorgu Bekleniyor</div>
+            <div style='font-size:12px;color:#ccc;margin-top:8px;'>GTİP, Ülke, Tarih girin → Sorgula</div>
         </div>""", unsafe_allow_html=True)
