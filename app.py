@@ -68,7 +68,6 @@ FORM_URL = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.
 
 @st.cache_resource
 def get_browser():
-    """Tarayıcıyı bir kez aç, form sayfasını yükle, açık tut"""
     pw      = sync_playwright().start()
     browser = pw.chromium.launch(
         headless=True,
@@ -81,7 +80,7 @@ def get_browser():
     page.wait_for_selector("#taricCode", timeout=10000)
     return pw, browser, page
 
-# ─── SAYFA ────────────────────────────────────────────────────────────────────
+# ─── SAYFA KONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(page_title="TARIC Sorgu", page_icon="🛃", layout="wide")
 st.markdown("""
 <style>
@@ -104,20 +103,36 @@ header{display:none!important;}
 .btn-p65.stButton>button{background:#0891b2!important;color:white!important;}
 .btn-d  .stButton>button{background:#d97706!important;color:white!important;}
 .btn-r  .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
+.btn-web .stButton>button{background:#7c3aed!important;color:white!important;font-size:13px!important;}
 .kart{background:white;border:1px solid #e5e7eb;border-radius:5px;padding:5px 10px;margin-bottom:3px;font-family:monospace;font-size:11px;}
 .aktif{border-color:#1d4ed8!important;background:#eff6ff!important;font-weight:700;color:#1d4ed8!important;}
 .tamam{opacity:0.4;}
 .prog{background:#e5e7eb;border-radius:8px;height:5px;overflow:hidden;margin:3px 0 10px;}
 .prog-bar{background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;}
 hr{border-color:#e0ddd5!important;margin:8px 0!important;}
+
+/* Web paneli */
+.web-panel-baslik{
+    background:#1a1a1a;border-radius:6px 6px 0 0;
+    padding:8px 14px;font-family:monospace;font-size:12px;
+    color:#c8b560;font-weight:700;display:flex;align-items:center;gap:8px;
+}
+.web-panel-bar{
+    background:#e8e6e1;border-radius:0;
+    padding:6px 10px;font-family:monospace;font-size:11px;
+    color:#555;border-bottom:1px solid #d0ccc4;
+    display:flex;align-items:center;gap:6px;
+}
 </style>
 """, unsafe_allow_html=True)
 
+# ─── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in {
     "kuyruk": [], "idx": 0,
     "html": None, "pdf": None, "pdf65": None,
     "pdf_n": 0, "ver": 0, "hata": "", "sure": "",
     "tetik": False, "tgtip": "", "tulke": "", "ttarih": "",
+    "sonuc_url": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -129,9 +144,10 @@ def av():
     return {"gtip": "", "ulke": "", "tarih": ""}
 
 def temizle():
-    st.session_state.html  = None
-    st.session_state.pdf   = None
-    st.session_state.pdf65 = None
+    st.session_state.html      = None
+    st.session_state.pdf       = None
+    st.session_state.pdf65     = None
+    st.session_state.sonuc_url = ""
 
 # ─── SORGU ────────────────────────────────────────────────────────────────────
 if st.session_state.tetik:
@@ -143,17 +159,15 @@ if st.session_state.tetik:
     t0    = time.time()
 
     try:
-        # Cached browser — ilk sorguda açılır (~3s), sonrakilerde hazır
         try:
             _, _, page = get_browser()
-            page.title()  # canlı mı kontrol et
+            page.title()
         except Exception:
             get_browser.clear()
             _, _, page = get_browser()
 
         t1 = time.time()
 
-        # Form sayfasındaysak formu doldur, değilse önce git
         durum.info("✏️ Form dolduruluyor...")
         try:
             page.wait_for_selector("#taricCode", timeout=3000)
@@ -175,6 +189,10 @@ if st.session_state.tetik:
         t2 = time.time()
 
         durum.info("📄 PDF alınıyor...")
+
+        # Sonuç URL'sini kaydet
+        st.session_state.sonuc_url = page.url
+
         html  = page.content()
         pdf   = page.pdf(format="A4", print_background=True, scale=1.0)
         pdf65 = page.pdf(format="A4", print_background=True, scale=0.65)
@@ -190,11 +208,14 @@ if st.session_state.tetik:
     except Exception as e:
         st.session_state.hata = str(e)
         durum.error(f"❌ {e}")
-        get_browser.clear()  # hata olursa cache'i temizle
+        get_browser.clear()
 
-# ─── LAYOUT ───────────────────────────────────────────────────────────────────
-sol, sag = st.columns([0.65, 2.35], gap="medium")
+# ─── LAYOUT: 3 KOLON (sol panel | iframe | web sayfası) ───────────────────────
+sol, orta, sag = st.columns([0.65, 1.5, 1.5], gap="small")
 
+# ══════════════════════════════════════════════════════
+# SOL PANEL
+# ══════════════════════════════════════════════════════
 with sol:
     st.markdown("<div style='font-size:22px;font-weight:800;padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>🛃 TARIC</div>", unsafe_allow_html=True)
 
@@ -312,15 +333,77 @@ with sol:
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-with sag:
+# ══════════════════════════════════════════════════════
+# ORTA: İFRAME (Mevcut HTML görünümü)
+# ══════════════════════════════════════════════════════
+with orta:
     if st.session_state.html:
-        st.markdown(f"<div style='padding:10px 16px;background:#1a1a1a;border-radius:6px;margin-bottom:4px;font-family:monospace;font-size:12px;color:#c8b560;font-weight:700;'>🛃 {st.session_state.tgtip} / {st.session_state.tulke}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='web-panel-baslik'>🛃 {st.session_state.tgtip} / {st.session_state.tulke} &nbsp;·&nbsp; <span style='color:#aaa;font-weight:400;font-size:11px;'>Önizleme</span></div>",
+            unsafe_allow_html=True
+        )
         st.components.v1.html(st.session_state.html, height=820, scrolling=True)
     else:
         st.markdown("""
         <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
                     min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
-            <div style='font-size:56px;opacity:0.10;'>🛃</div>
-            <div style='font-size:16px;font-weight:700;color:#bbb;margin-top:16px;'>Sorgu Bekleniyor</div>
-            <div style='font-size:12px;color:#ccc;margin-top:8px;'>GTİP, Ülke, Tarih girin → Sorgula</div>
+            <div style='font-size:48px;opacity:0.10;'>📋</div>
+            <div style='font-size:14px;font-weight:700;color:#bbb;margin-top:16px;'>Önizleme</div>
+            <div style='font-size:11px;color:#ccc;margin-top:8px;'>Sorgu sonrası burada görünür</div>
+        </div>""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════
+# SAĞ: GERÇEK WEB SAYFASI (popup boyutunda açılır)
+# ══════════════════════════════════════════════════════
+with sag:
+    if st.session_state.sonuc_url:
+        url = st.session_state.sonuc_url
+
+        # Adres çubuğu görünümü + buton
+        st.markdown(
+            f"""
+            <div class='web-panel-baslik'>🌐 AB TARIC &nbsp;·&nbsp; 
+            <span style='color:#aaa;font-weight:400;font-size:11px;'>Tıklanabilir Sayfa</span></div>
+            <div class='web-panel-bar'>
+                🔒 <span style='color:#1d4ed8;'>{url[:60]}{'...' if len(url)>60 else ''}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Küçültülmüş web sayfası — zoom ile
+        st.markdown(
+            f"""
+            <div style='width:100%;height:820px;overflow:hidden;border:1px solid #d0ccc4;border-top:none;border-radius:0 0 6px 6px;background:white;'>
+                <div style='transform:scale(0.75);transform-origin:top left;width:133%;height:133%;'>
+                    <iframe 
+                        src="{url}"
+                        width="100%"
+                        height="1093px"
+                        style="border:none;"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    ></iframe>
+                </div>
+            </div>
+            <div style='margin-top:6px;'>
+                <a href="{url}" target="_blank"
+                   style='display:inline-block;background:#7c3aed;color:white;padding:8px 18px;
+                          border-radius:5px;font-size:12px;font-weight:700;text-decoration:none;'>
+                    ↗ Tam Ekran Aç
+                </a>
+                <span style='font-size:11px;color:#999;margin-left:10px;'>
+                    Toggle · Tıklama · Tam özellik
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown("""
+        <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
+            <div style='font-size:48px;opacity:0.10;'>🌐</div>
+            <div style='font-size:14px;font-weight:700;color:#bbb;margin-top:16px;'>Web Sayfası</div>
+            <div style='font-size:11px;color:#ccc;margin-top:8px;'>Sorgu sonrası AB sitesi burada açılır</div>
+            <div style='font-size:11px;color:#ccc;margin-top:4px;'>Tüm linkler ve toggle'lar çalışır</div>
         </div>""", unsafe_allow_html=True)
