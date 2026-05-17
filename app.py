@@ -61,9 +61,18 @@ def satirlari_parse_et(ham):
 def sonuc_url_olustur(gtip, ulke, tarih):
     """AB TARIC sorgu URL'si — tarayıcıda doğrudan açılabilir, toggle çalışır"""
     # tarih: DD-MM-YYYY → DDMMYYYY
-    tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
+    parcalar = re.split(r'[.\-/]', tarih.strip())
+    if len(parcalar) == 3:
+        gun, ay, yil = parcalar[0].zfill(2), parcalar[1].zfill(2), parcalar[2]
+        tarih_temiz = f"{gun}{ay}{yil}"
+    else:
+        tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
+
+    # GTİP 10 hane olmalı
+    gtip_temiz = gtip[:10] if len(gtip) > 10 else gtip
+
     base = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp"
-    params = {"Lang": "en", "taricCode": gtip, "Area": ulke, "SimDate": tarih_temiz, "Expand": "true"}
+    params = {"Lang": "en", "taricCode": gtip_temiz, "Area": ulke, "SimDate": tarih_temiz, "Expand": "true"}
     return f"{base}?{urlencode(params)}"
 
 def html_getir(gtip, ulke, tarih):
@@ -183,7 +192,7 @@ if st.session_state.tetik:
         durum.error(f"❌ {e}")
 
 # ─── LAYOUT ───────────────────────────────────────────────────────────────────
-sol, sag = st.columns([0.65, 2.35], gap="medium")
+sol, _ = st.columns([1, 3], gap="medium")
 
 with sol:
     st.markdown("<div style='font-size:22px;font-weight:800;padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>🛃 TARIC</div>", unsafe_allow_html=True)
@@ -267,28 +276,9 @@ with sol:
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════
-# SAĞ: HTML ÖNIZLEME + otomatik sekme aç
-# ══════════════════════════════════════════════════════
-with sag:
-    if st.session_state.html:
-        st.markdown(
-            f"<div class='web-panel-baslik'>🛃 {st.session_state.tgtip} / {st.session_state.tulke}</div>",
-            unsafe_allow_html=True
-        )
-        st.components.v1.html(st.session_state.html, height=820, scrolling=True)
-
-        # Sorgu sonrası AB sitesini otomatik yeni sekmede aç
-        if st.session_state.sonuc_url:
-            st.components.v1.html(
-                f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
-                height=0
-            )
-    else:
-        st.markdown("""
-        <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    min-height:75vh;text-align:center;background:white;border-radius:8px;border:1px dashed #d0ccc4;'>
-            <div style='font-size:56px;opacity:0.10;'>🛃</div>
-            <div style='font-size:16px;font-weight:700;color:#bbb;margin-top:16px;'>Sorgu Bekleniyor</div>
-            <div style='font-size:12px;color:#ccc;margin-top:8px;'>GTİP, Ülke, Tarih girin → Sorgula</div>
-        </div>""", unsafe_allow_html=True)
+# Sorgu sonrası AB sitesini otomatik yeni sekmede aç
+if st.session_state.sonuc_url:
+    st.components.v1.html(
+        f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
+        height=0
+    )
