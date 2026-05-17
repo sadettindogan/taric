@@ -31,7 +31,11 @@ def gtip_cevir(girdi):
     return temiz
 
 def tarih_cevir(girdi):
-    return girdi.strip()
+    girdi = girdi.strip()
+    p = re.split(r'[.\-/]', girdi)
+    if len(p) == 3:
+        return f"{p[0].zfill(2)}-{p[1].zfill(2)}-{p[2]}"
+    return girdi
 
 def satirlari_parse_et(ham):
     ham = ham.strip()
@@ -56,7 +60,8 @@ def satirlari_parse_et(ham):
     } for p in sonuc if len(p) >= 3]
 
 def sonuc_url_olustur(gtip, ulke, tarih):
-    """AB TARIC sorgu URL'si — tarayıcıda doğrudan açılabilir, toggle çalışır"""
+    """AB TARIC sorgu URL'si"""
+    # tarih zaten DD-MM-YYYY formatında geliyor, URL'ye öyle gönder
     base = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp"
     params = {"Lang": "en", "taricCode": gtip, "Area": ulke, "SimDate": tarih, "Expand": "true"}
     return f"{base}?{urlencode(params)}"
