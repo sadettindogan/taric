@@ -25,7 +25,8 @@ def ulke_cevir(girdi):
 
 def gtip_cevir(girdi):
     temiz = str(girdi).replace(".", "").replace(" ", "").strip()
-    if len(temiz) == 12:
+    # Sondan düşürerek 10 haneye indir
+    while len(temiz) > 10:
         temiz = temiz[:-1]
     return temiz
 
@@ -60,16 +61,16 @@ def satirlari_parse_et(ham):
 
 def sonuc_url_olustur(gtip, ulke, tarih):
     """AB TARIC sorgu URL'si — tarayıcıda doğrudan açılabilir, toggle çalışır"""
-    # tarih: DD-MM-YYYY → DDMMYYYY
+    # tarih: DD-MM-YYYY formatında gönder (AB sitesi bunu istiyor)
     parcalar = re.split(r'[.\-/]', tarih.strip())
     if len(parcalar) == 3:
         gun, ay, yil = parcalar[0].zfill(2), parcalar[1].zfill(2), parcalar[2]
-        tarih_temiz = f"{gun}{ay}{yil}"
+        tarih_temiz = f"{gun}-{ay}-{yil}"
     else:
-        tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
+        tarih_temiz = tarih
 
-    # GTİP 10 hane olmalı
-    gtip_temiz = gtip[:10] if len(gtip) > 10 else gtip
+    # GTİP zaten gtip_cevir ile 10 haneye düşürülmüş gelir
+    gtip_temiz = gtip
 
     base = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp"
     params = {"Lang": "en", "taricCode": gtip_temiz, "Area": ulke, "SimDate": tarih_temiz, "Expand": "true"}
