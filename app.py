@@ -61,13 +61,13 @@ def satirlari_parse_et(ham):
 
 def sonuc_url_olustur(gtip, ulke, tarih):
     """AB TARIC sorgu URL'si — tarayıcıda doğrudan açılabilir, toggle çalışır"""
-    # tarih: DD-MM-YYYY formatında gönder (AB sitesi bunu istiyor)
+    # tarih: DDMMYYYY formatında gönder (AB sitesi URL parametresi için)
     parcalar = re.split(r'[.\-/]', tarih.strip())
     if len(parcalar) == 3:
         gun, ay, yil = parcalar[0].zfill(2), parcalar[1].zfill(2), parcalar[2]
-        tarih_temiz = f"{gun}-{ay}-{yil}"
+        tarih_temiz = f"{gun}{ay}{yil}"
     else:
-        tarih_temiz = tarih
+        tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
 
     # GTİP zaten gtip_cevir ile 10 haneye düşürülmüş gelir
     gtip_temiz = gtip
