@@ -385,9 +385,20 @@ with sol:
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # ── YENİ SAYFA PDF ───────────────────────────────────────────────────────
-    st.markdown("<div class='bolum-baslik'>🌐 Yeni Sayfa PDF</div>", unsafe_allow_html=True)
+    st.markdown("<div class='bolum-baslik'>🌐 Yeni Sayfa PDF — Tıkladıktan Sonra</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='font-size:10px;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;
+    border-radius:4px;padding:7px 10px;margin-bottom:6px;line-height:1.6;'>
+    Yeni sayfada tıklayıp istediğiniz görünüme getirin,<br>
+    sonra <b>adres çubuğundaki URL'yi</b> aşağıya yapıştırın.
+    </div>
+    """, unsafe_allow_html=True)
 
-    var_url         = bool(st.session_state.sonuc_url)
+    manuel_url = st.text_input("Yeni sayfanın URL'si",
+        placeholder="https://ec.europa.eu/taxation_customs/...",
+        key=f"manuel_url_{ver}", label_visibility="collapsed")
+
+    var_manuel  = bool(manuel_url.strip().startswith("http"))
     var_yeni_pdf    = bool(st.session_state.yeni_sayfa_pdf)
     var_yeni_pdf65  = bool(st.session_state.yeni_sayfa_pdf65)
     dosya_yeni      = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_yeni.pdf"
@@ -398,10 +409,10 @@ with sol:
     with y1:
         st.markdown("<div class='btn-yeni-pdf'>", unsafe_allow_html=True)
         if st.button("🌐 PDF Al", use_container_width=True,
-                     disabled=not var_url, key="btn_yeni_pdf",
-                     help="Yeni sayfanın son halinden PDF al"):
+                     disabled=not var_manuel, key="btn_yeni_pdf",
+                     help="Yapıştırdığınız URL'den tam PDF al"):
             with st.spinner("⏳ PDF hazırlanıyor..."):
-                pdf, hata = url_pdf_al(st.session_state.sonuc_url, scale=1.0)
+                pdf, hata = url_pdf_al(manuel_url.strip(), scale=1.0)
             if hata:
                 st.error(f"❌ {hata}")
             else:
@@ -411,10 +422,10 @@ with sol:
     with y2:
         st.markdown("<div class='btn-yeni-pdf65'>", unsafe_allow_html=True)
         if st.button("🌐 %65 Al", use_container_width=True,
-                     disabled=not var_url, key="btn_yeni_pdf65",
-                     help="Yeni sayfanın son halinden %65 PDF al"):
+                     disabled=not var_manuel, key="btn_yeni_pdf65",
+                     help="Yapıştırdığınız URL'den %65 PDF al"):
             with st.spinner("⏳ PDF hazırlanıyor..."):
-                pdf, hata = url_pdf_al(st.session_state.sonuc_url, scale=0.65)
+                pdf, hata = url_pdf_al(manuel_url.strip(), scale=0.65)
             if hata:
                 st.error(f"❌ {hata}")
             else:
