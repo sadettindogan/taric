@@ -69,13 +69,6 @@ def satirlari_parse_et(ham):
             })
     return sonuc
 
-def sonuc_url_olustur(gtip, ulke, tarih):
-    tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
-    return (
-        "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?"
-        + urlencode({"Lang": "en", "taricCode": gtip, "Area": ulke, "SimDate": tarih_temiz, "Expand": "true"})
-    )
-
 def taric_sorgula(gtip, ulke, tarih):
     try:
         with sync_playwright() as p:
@@ -98,13 +91,17 @@ def taric_sorgula(gtip, ulke, tarih):
                 except: page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle", timeout=30000)
             time.sleep(2)
+
+            # Playwright'ın ulaştığı gerçek sonuç URL'si
+            gercek_url      = page.url
+
             html_content    = page.content()
             pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
             pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
             browser.close()
-            return html_content, pdf_bytes, pdf_bytes_kucuk, None
+            return html_content, pdf_bytes, pdf_bytes_kucuk, gercek_url, None
     except Exception as e:
-        return None, None, None, str(e)
+        return None, None, None, "", str(e)
 
 def taric_url_ac(url):
     try:
@@ -115,13 +112,14 @@ def taric_url_ac(url):
             page    = context.new_page()
             page.goto(url, wait_until="networkidle", timeout=30000)
             time.sleep(1.5)
+            gercek_url      = page.url
             html_content    = page.content()
             pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
             pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
             browser.close()
-            return html_content, pdf_bytes, pdf_bytes_kucuk, None
+            return html_content, pdf_bytes, pdf_bytes_kucuk, gercek_url, None
     except Exception as e:
-        return None, None, None, str(e)
+        return None, None, None, "", str(e)
 
 def linkleri_cıkar(html):
     from bs4 import BeautifulSoup
@@ -228,6 +226,11 @@ hr{border-color:#e0ddd5!important;margin:8px 0!important;}
     font-family:'Syne',sans-serif;text-transform:uppercase;
 }
 .btn-yeni-sayfa a:hover{background:#047857!important;}
+.btn-yeni-sayfa-pasif{
+    text-align:center;background:#e5e7eb;color:#9ca3af;
+    font-size:11px;padding:11px 0;border-radius:4px;font-weight:700;
+    letter-spacing:0.5px;text-transform:uppercase;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,8 +239,7 @@ for k, v in {
     "kuyruk": [], "aktif_idx": 0,
     "page_html": None, "pdf_bytes": None, "pdf_bytes_kucuk": None,
     "sorgulandı": False, "pdf_sayisi": 0,
-    "input_ver": 0, "navigate_url": "",
-    "linkler": [], "sonuc_url": "",
+    "input_ver": 0, "linkler": [], "sonuc_url": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -314,7 +316,7 @@ with sol:
     sorgula = st.button("🔍  Sorgula", use_container_width=True, disabled=not akt_gtip.strip())
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── YENİ SAYFADA AÇ — sorgula butonunun hemen altında ───────────────────
+    # ── YENİ SAYFADA AÇ — Playwright'ın elde ettiği gerçek URL ───────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     if st.session_state.sonuc_url:
         st.markdown(
@@ -324,12 +326,7 @@ with sol:
             unsafe_allow_html=True
         )
     else:
-        st.markdown("""
-        <div style='text-align:center;background:#e5e7eb;color:#9ca3af;
-            font-size:11px;padding:11px 0;border-radius:4px;font-weight:700;
-            letter-spacing:0.5px;font-family:Syne,sans-serif;text-transform:uppercase;'>
-            🌐 Sonucu Yeni Sayfada Aç ↗
-        </div>""", unsafe_allow_html=True)
+        st.markdown("<div class='btn-yeni-sayfa-pasif'>🌐 Sonucu Yeni Sayfada Aç ↗</div>", unsafe_allow_html=True)
 
     # ── PDF BUTONLARI ─────────────────────────────────────────────────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
@@ -403,12 +400,12 @@ with sol:
             if st.button(link["metin"], key=f"link_{i}_{ver}", use_container_width=True):
                 with sag:
                     with st.spinner(f"⏳ {link['metin']} açılıyor..."):
-                        h, pdf, pdf_k, hata = taric_url_ac(link["url"])
+                        h, pdf, pdf_k, gercek_url, hata = taric_url_ac(link["url"])
                     if not hata:
                         st.session_state.page_html       = html_temizle(h)
                         st.session_state.pdf_bytes       = pdf
                         st.session_state.pdf_bytes_kucuk = pdf_k
-                        st.session_state.sonuc_url       = link["url"]
+                        st.session_state.sonuc_url       = gercek_url or link["url"]
                         try: st.session_state.linkler = linkleri_cıkar(h)
                         except: st.session_state.linkler = []
                     else:
@@ -422,7 +419,7 @@ with sol:
         for i, s in enumerate(st.session_state.kuyruk):
             if i < idx:    cls, ikon = "satir-kart satir-tamam", "✅"
             elif i == idx: cls, ikon = "satir-kart satir-aktif", "▶"
-            else:           cls, ikon = "satir-kart", f"{i+1}."
+            else:          cls, ikon = "satir-kart", f"{i+1}."
             st.markdown(f"<div class='{cls}'>{ikon} {s['gtip']} / {s['ulke']}</div>", unsafe_allow_html=True)
 
         st.markdown("<div style='height:4px'></div><div class='btn-reset'>", unsafe_allow_html=True)
@@ -446,7 +443,7 @@ if sorgula:
     tarih = akt_tarih.strip()
     with sag:
         with st.spinner(f"⏳ {gtip} / {ulke} sorgulanıyor..."):
-            html_content, pdf_bytes, pdf_bytes_kucuk, hata = taric_sorgula(gtip, ulke, tarih)
+            html_content, pdf_bytes, pdf_bytes_kucuk, gercek_url, hata = taric_sorgula(gtip, ulke, tarih)
         if hata:
             st.error(f"❌ {hata}")
         else:
@@ -454,7 +451,7 @@ if sorgula:
             st.session_state.pdf_bytes       = pdf_bytes
             st.session_state.pdf_bytes_kucuk = pdf_bytes_kucuk
             st.session_state.sorgulandı      = True
-            st.session_state.sonuc_url       = sonuc_url_olustur(gtip, ulke, tarih)
+            st.session_state.sonuc_url       = gercek_url  # Playwright'ın gerçek sonuç URL'si
             try: st.session_state.linkler = linkleri_cıkar(html_content)
             except: st.session_state.linkler = []
     st.rerun()
