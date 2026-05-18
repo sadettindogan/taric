@@ -93,20 +93,11 @@ def html_temizle(html):
     BASE = "https://ec.europa.eu"
     BASE_TARIC = "https://ec.europa.eu/taxation_customs/dds2/taric"
 
-    # Güvenlik headerlarını kaldır
     html = re.sub(r'<meta[^>]*(x-frame-options|content-security-policy)[^>]*>', '', html, flags=re.IGNORECASE)
-
-    # Tüm relative linkleri absolute yap
     html = re.sub(r'href="(/[^"]*)"', lambda m: f'href="{BASE}{m.group(1)}"', html)
     html = re.sub(r'src="(/[^"]*)"', lambda m: f'src="{BASE}{m.group(1)}"', html)
     html = re.sub(r'action="(/[^"]*)"', lambda m: f'action="{BASE}{m.group(1)}"', html)
-
-    # javascript: linkleri yeni sekmede aç
-    html = re.sub(
-        r'href="(https?://[^"]*)"',
-        r'href="\1" target="_blank"',
-        html
-    )
+    html = re.sub(r'href="(https?://[^"]*)"', r'href="\1" target="_blank"', html)
 
     ek = f"""
 <base href="{BASE_TARIC}/">
@@ -121,10 +112,8 @@ def html_temizle(html):
   td, th {{ padding: 5px 8px !important; }}
   a {{ color: #1d4ed8 !important; cursor: pointer !important; }}
   a:hover {{ text-decoration: underline !important; }}
-  /* Gereksiz header/footer gizle */
   .ecl-site-header, .ecl-footer, #header, #footer,
   .ecl-page-header, nav {{ display:none !important; }}
-  /* Ana içeriği öne çıkar */
   #content, .ecl-container, main {{
     padding: 8px !important;
     margin: 0 !important;
@@ -165,6 +154,37 @@ header{display:none!important;}
 .prog{background:#e5e7eb;border-radius:8px;height:5px;overflow:hidden;margin:3px 0 10px;}
 .prog-bar{background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;}
 hr{border-color:#e0ddd5!important;margin:8px 0!important;}
+.aciklama-kutu{
+    background:#fffbeb;
+    border:1px solid #fbbf24;
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:11px;
+    color:#92400e;
+    margin-top:10px;
+    line-height:1.6;
+}
+.aciklama-kutu b { color:#78350f; }
+.aciklama-adim {
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    margin-bottom:6px;
+}
+.aciklama-numara {
+    background:#f59e0b;
+    color:white;
+    font-weight:800;
+    border-radius:50%;
+    width:18px;
+    height:18px;
+    min-width:18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:10px;
+    margin-top:1px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -215,9 +235,9 @@ sol, sag = st.columns([1, 4], gap="medium")
 
 with sol:
     st.markdown("""
-    <div style='display:flex;align-items:center;justify-content:space-between;
-                padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>
-        <div style='font-size:22px;font-weight:800;'>🛃 TARIC</div>
+    <div style='font-size:22px;font-weight:800;padding-bottom:10px;
+                border-bottom:2px solid #c8b560;margin-bottom:12px;'>
+        🛃 TARIC
     </div>
     """, unsafe_allow_html=True)
 
@@ -263,6 +283,27 @@ with sol:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # ─── AÇIKLAMA KUTUSU ───────────────────────────────────────────────────────
+    st.markdown("""
+    <div class='aciklama-kutu'>
+        <b>📋 Sonuç nasıl kullanılır?</b>
+        <div style='margin-top:8px;'>
+            <div class='aciklama-adim'>
+                <div class='aciklama-numara'>1</div>
+                <div>Sağ tarafta sonuç otomatik açılır</div>
+            </div>
+            <div class='aciklama-adim'>
+                <div class='aciklama-numara'>2</div>
+                <div>Sonuç sayfasında <b>"Retrieve Measures"</b> butonuna tıklayın</div>
+            </div>
+            <div class='aciklama-adim'>
+                <div class='aciklama-numara'>3</div>
+                <div>Veriler yüklendikten sonra <b>Ctrl+P</b> → <b>"PDF olarak kaydet"</b> seçin</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if st.session_state.kuyruk:
         total = len(st.session_state.kuyruk)
         i     = st.session_state.idx
@@ -303,11 +344,11 @@ with sol:
 # ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
 with sag:
     if st.session_state.html:
-        if st.session_state.sonuc_url:
-            st.markdown(
-                f"<div style='font-size:11px;color:#6b7280;font-family:monospace;padding:0 0 6px;'>"
-                f"🔗 <a href='{st.session_state.sonuc_url}' target='_blank' style='color:#1d4ed8;'>AB sitesinde aç ↗</a>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
+        st.markdown(
+            f"<div style='font-size:11px;color:#6b7280;font-family:monospace;padding:0 0 6px;'>"
+            f"🔗 <a href='{st.session_state.sonuc_url}' target='_blank' style='color:#1d4ed8;'>AB sitesinde aç ↗</a>"
+            f"&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#059669;'>✅ Sayfa yüklendi — sağdaki sonuçta <b>Retrieve Measures</b> butonuna tıklayın</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
         st.components.v1.html(st.session_state.html, height=850, scrolling=True)
