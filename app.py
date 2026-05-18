@@ -107,7 +107,7 @@ st.markdown("""
 html,body,[data-testid="stAppViewContainer"]{background:#f5f3ef;}
 section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
-.block-container{padding:50px 16px 12px 16px!important;max-width:100%!important;}
+.block-container{padding:12px 16px!important;max-width:100%!important;}
 [data-testid="column"]:first-child{
     min-width:260px!important;
     max-width:300px!important;
@@ -131,64 +131,8 @@ header{display:none!important;}
 .prog{background:#e5e7eb;border-radius:8px;height:5px;overflow:hidden;margin:3px 0 10px;}
 .prog-bar{background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;}
 hr{border-color:#e0ddd5!important;margin:8px 0!important;}
-.web-panel-baslik{
-    background:#1a1a1a;border-radius:6px 6px 0 0;
-    padding:8px 14px;font-family:monospace;font-size:12px;
-    color:#c8b560;font-weight:700;
-}
-.sag-placeholder{
-    height:400px;display:flex;align-items:center;justify-content:center;
-    color:#9ca3af;font-size:14px;border:2px dashed #e5e7eb;
-    border-radius:8px;margin-top:40px;flex-direction:column;gap:10px;
-}
 </style>
 """, unsafe_allow_html=True)
-
-# ─── EN ÜSTTE SABİT BAR ───────────────────────────────────────────────────────
-st.components.v1.html("""
-<style>
-  #ust-bar {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 999999;
-    background: #1a1a1a;
-    padding: 6px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 40px;
-    box-sizing: border-box;
-    font-family: monospace;
-  }
-  #ust-bar .baslik {
-    color: #c8b560;
-    font-size: 14px;
-    font-weight: 700;
-  }
-  #ust-bar button {
-    background: transparent;
-    color: #c8b560;
-    border: 1px solid #c8b560;
-    padding: 4px 14px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    font-weight: 700;
-    font-family: monospace;
-    transition: all 0.2s;
-  }
-  #ust-bar button:hover {
-    background: #c8b560;
-    color: #1a1a1a;
-  }
-</style>
-<div id="ust-bar">
-  <span class="baslik">🛃 TARIC Sorgu</span>
-  <button onclick="window.resizeTo(980, 750); window.moveTo(150, 80);">
-    ⊡ Küçük Pencere
-  </button>
-</div>
-""", height=40)
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in {
@@ -236,7 +180,20 @@ if st.session_state.tetik:
 sol, sag = st.columns([1, 4], gap="medium")
 
 with sol:
-    st.markdown("<div style='font-size:22px;font-weight:800;padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>🛃 TARIC</div>", unsafe_allow_html=True)
+    # Başlık + Küçült butonu yan yana
+    st.markdown("""
+    <div style='display:flex;align-items:center;justify-content:space-between;
+                padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>
+        <div style='font-size:22px;font-weight:800;'>🛃 TARIC</div>
+        <button onclick="window.resizeTo(980,750);window.moveTo(150,80);" style="
+            background:#1a1a1a;color:#c8b560;
+            border:1px solid #c8b560;
+            padding:4px 10px;border-radius:4px;
+            font-size:11px;cursor:pointer;font-weight:700;
+            font-family:monospace;
+        ">⊡ Küçült</button>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.expander("📋 Excel'den kopyala yapıştır", expanded=not st.session_state.kuyruk):
         t = st.text_area("", height=100, key="txt",
@@ -317,23 +274,9 @@ with sol:
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
-with sag:
-    if st.session_state.html:
-        st.markdown("<div class='web-panel-baslik'>🌐 AB TARIC Sonucu</div>", unsafe_allow_html=True)
-        if st.session_state.sonuc_url:
-            st.markdown(
-                f"<div style='font-size:11px;color:#6b7280;font-family:monospace;padding:4px 0 8px;'>"
-                f"🔗 <a href='{st.session_state.sonuc_url}' target='_blank'>{st.session_state.sonuc_url[:80]}...</a>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-        st.components.v1.html(st.session_state.html, height=800, scrolling=True)
-    else:
-        st.markdown("""
-        <div class='sag-placeholder'>
-            <div style='font-size:40px;'>🛃</div>
-            <div style='font-weight:700;color:#6b7280;'>Sorgu sonucu burada görünecek</div>
-            <div style='font-size:12px;color:#d1d5db;'>Sol panelden GTİP, Ülke ve Tarih girerek sorgulayın</div>
-        </div>
-        """, unsafe_allow_html=True)
+# Sağ taraf — sorgu sonrası AB sitesini yeni sekmede aç
+if st.session_state.sonuc_url:
+    st.components.v1.html(
+        f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
+        height=0
+    )
