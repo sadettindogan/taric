@@ -91,10 +91,7 @@ def taric_sorgula(gtip, ulke, tarih):
                 except: page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle", timeout=30000)
             time.sleep(2)
-
-            # Playwright'ın ulaştığı gerçek sonuç URL'si
             gercek_url      = page.url
-
             html_content    = page.content()
             pdf_bytes       = page.pdf(format="A4", print_background=True, scale=1.0)
             pdf_bytes_kucuk = page.pdf(format="A4", print_background=True, scale=0.65)
@@ -120,6 +117,22 @@ def taric_url_ac(url):
             return html_content, pdf_bytes, pdf_bytes_kucuk, gercek_url, None
     except Exception as e:
         return None, None, None, "", str(e)
+
+def url_pdf_al(url, scale=1.0):
+    """Verilen URL'yi Playwright ile açıp sadece PDF döner"""
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, executable_path="/usr/bin/chromium",
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
+            context = browser.new_context(viewport={"width": 1400, "height": 900})
+            page    = context.new_page()
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            time.sleep(2)
+            pdf = page.pdf(format="A4", print_background=True, scale=scale)
+            browser.close()
+            return pdf, None
+    except Exception as e:
+        return None, str(e)
 
 def linkleri_cıkar(html):
     from bs4 import BeautifulSoup
@@ -211,6 +224,8 @@ header{display:none!important;}
 .btn-pdf     .stButton>button{background:#16a34a!important;color:white!important;padding:9px 0!important;}
 .btn-devam   .stButton>button{background:#d97706!important;color:white!important;padding:9px 0!important;}
 .btn-pdf65   .stButton>button{background:#0891b2!important;color:white!important;padding:9px 0!important;}
+.btn-yeni-pdf   .stButton>button{background:#7c3aed!important;color:white!important;padding:9px 0!important;}
+.btn-yeni-pdf65 .stButton>button{background:#9333ea!important;color:white!important;padding:9px 0!important;}
 .btn-reset   .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
 .satir-kart{background:white;border:1px solid #e5e7eb;border-radius:5px;padding:5px 10px;
             margin-bottom:3px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#374151;}
@@ -231,6 +246,10 @@ hr{border-color:#e0ddd5!important;margin:8px 0!important;}
     font-size:11px;padding:11px 0;border-radius:4px;font-weight:700;
     letter-spacing:0.5px;text-transform:uppercase;
 }
+.bolum-baslik{
+    font-size:9px;color:#aaa;font-weight:700;letter-spacing:1.5px;
+    text-transform:uppercase;margin:8px 0 4px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,6 +259,7 @@ for k, v in {
     "page_html": None, "pdf_bytes": None, "pdf_bytes_kucuk": None,
     "sorgulandı": False, "pdf_sayisi": 0,
     "input_ver": 0, "linkler": [], "sonuc_url": "",
+    "yeni_sayfa_pdf": None, "yeni_sayfa_pdf65": None,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -257,6 +277,8 @@ def sonraki_satira_gec():
     st.session_state.pdf_bytes       = None
     st.session_state.pdf_bytes_kucuk = None
     st.session_state.sonuc_url       = ""
+    st.session_state.yeni_sayfa_pdf  = None
+    st.session_state.yeni_sayfa_pdf65= None
     st.session_state.input_ver      += 1
 
 # ─── LAYOUT ───────────────────────────────────────────────────────────────────
@@ -280,15 +302,17 @@ with sol:
             if satirlar:
                 st.markdown(f"<div style='font-size:11px;color:#166534;font-weight:700;'>✅ {len(satirlar)} satır</div>", unsafe_allow_html=True)
         if st.button("📥  Kuyruğa Yükle", use_container_width=True, disabled=len(satirlar) == 0):
-            st.session_state.kuyruk          = satirlar
-            st.session_state.aktif_idx       = 0
-            st.session_state.sorgulandı      = False
-            st.session_state.page_html       = None
-            st.session_state.pdf_bytes       = None
-            st.session_state.pdf_bytes_kucuk = None
-            st.session_state.pdf_sayisi      = 0
-            st.session_state.sonuc_url       = ""
-            st.session_state.input_ver      += 1
+            st.session_state.kuyruk           = satirlar
+            st.session_state.aktif_idx        = 0
+            st.session_state.sorgulandı       = False
+            st.session_state.page_html        = None
+            st.session_state.pdf_bytes        = None
+            st.session_state.pdf_bytes_kucuk  = None
+            st.session_state.pdf_sayisi       = 0
+            st.session_state.sonuc_url        = ""
+            st.session_state.yeni_sayfa_pdf   = None
+            st.session_state.yeni_sayfa_pdf65 = None
+            st.session_state.input_ver       += 1
             st.rerun()
 
     if st.session_state.kuyruk:
@@ -302,7 +326,7 @@ with sol:
         <div class='prog'><div class='prog-bar' style='width:{pct}%'></div></div>
         """, unsafe_allow_html=True)
 
-    av = aktif_veri()
+    av  = aktif_veri()
     ver = st.session_state.input_ver
     st.markdown("<div style='font-size:10px;color:#555;letter-spacing:1.5px;font-weight:700;margin-bottom:2px;'>SORGULANACAK VERİ</div>", unsafe_allow_html=True)
     akt_gtip  = st.text_input("GTİP",  value=av["gtip"],  key=f"inp_gtip_{ver}")
@@ -316,8 +340,9 @@ with sol:
     sorgula = st.button("🔍  Sorgula", use_container_width=True, disabled=not akt_gtip.strip())
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── YENİ SAYFADA AÇ — Playwright'ın elde ettiği gerçek URL ───────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+
+    # ── YENİ SAYFADA AÇ ──────────────────────────────────────────────────────
     if st.session_state.sonuc_url:
         st.markdown(
             f"<div class='btn-yeni-sayfa'>"
@@ -328,15 +353,17 @@ with sol:
     else:
         st.markdown("<div class='btn-yeni-sayfa-pasif'>🌐 Sonucu Yeni Sayfada Aç ↗</div>", unsafe_allow_html=True)
 
-    # ── PDF BUTONLARI ─────────────────────────────────────────────────────────
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+    # ── SORGU SONUCU PDF ─────────────────────────────────────────────────────
+    st.markdown("<div class='bolum-baslik'>📄 Sorgu Sonucu PDF</div>", unsafe_allow_html=True)
     idx_no      = st.session_state.aktif_idx
     dosya       = f"{idx_no+1}_{akt_gtip}_{akt_ulke}.pdf"
     dosya_kucuk = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_65.pdf"
     var_pdf     = bool(st.session_state.pdf_bytes)
     var_pdf65   = bool(st.session_state.pdf_bytes_kucuk)
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
         if st.download_button("📄 PDF", data=st.session_state.pdf_bytes or b"",
@@ -354,12 +381,76 @@ with sol:
             st.session_state.pdf_sayisi += 1
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown("<div class='btn-devam'>", unsafe_allow_html=True)
-        if st.button("⏭️", use_container_width=True, help="PDF almadan devam", disabled=not var_pdf):
-            sonraki_satira_gec()
+
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+    # ── YENİ SAYFA PDF ───────────────────────────────────────────────────────
+    st.markdown("<div class='bolum-baslik'>🌐 Yeni Sayfa PDF</div>", unsafe_allow_html=True)
+
+    var_url         = bool(st.session_state.sonuc_url)
+    var_yeni_pdf    = bool(st.session_state.yeni_sayfa_pdf)
+    var_yeni_pdf65  = bool(st.session_state.yeni_sayfa_pdf65)
+    dosya_yeni      = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_yeni.pdf"
+    dosya_yeni_65   = f"{idx_no+1}_{akt_gtip}_{akt_ulke}_yeni_65.pdf"
+
+    # PDF al butonları
+    y1, y2 = st.columns(2)
+    with y1:
+        st.markdown("<div class='btn-yeni-pdf'>", unsafe_allow_html=True)
+        if st.button("🌐 PDF Al", use_container_width=True,
+                     disabled=not var_url, key="btn_yeni_pdf",
+                     help="Yeni sayfanın son halinden PDF al"):
+            with st.spinner("⏳ PDF hazırlanıyor..."):
+                pdf, hata = url_pdf_al(st.session_state.sonuc_url, scale=1.0)
+            if hata:
+                st.error(f"❌ {hata}")
+            else:
+                st.session_state.yeni_sayfa_pdf = pdf
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+    with y2:
+        st.markdown("<div class='btn-yeni-pdf65'>", unsafe_allow_html=True)
+        if st.button("🌐 %65 Al", use_container_width=True,
+                     disabled=not var_url, key="btn_yeni_pdf65",
+                     help="Yeni sayfanın son halinden %65 PDF al"):
+            with st.spinner("⏳ PDF hazırlanıyor..."):
+                pdf, hata = url_pdf_al(st.session_state.sonuc_url, scale=0.65)
+            if hata:
+                st.error(f"❌ {hata}")
+            else:
+                st.session_state.yeni_sayfa_pdf65 = pdf
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # İndir butonları — PDF hazırlandıysa belirir
+    if var_yeni_pdf or var_yeni_pdf65:
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        d1, d2 = st.columns(2)
+        with d1:
+            if var_yeni_pdf:
+                st.markdown("<div class='btn-yeni-pdf'>", unsafe_allow_html=True)
+                if st.download_button("⬇️ İndir", data=st.session_state.yeni_sayfa_pdf,
+                    file_name=dosya_yeni, mime="application/pdf",
+                    use_container_width=True, key="dl_yeni_pdf"):
+                    st.session_state.pdf_sayisi += 1
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+        with d2:
+            if var_yeni_pdf65:
+                st.markdown("<div class='btn-yeni-pdf65'>", unsafe_allow_html=True)
+                if st.download_button("⬇️ İndir", data=st.session_state.yeni_sayfa_pdf65,
+                    file_name=dosya_yeni_65, mime="application/pdf",
+                    use_container_width=True, key="dl_yeni_pdf65"):
+                    st.session_state.pdf_sayisi += 1
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='btn-devam'>", unsafe_allow_html=True)
+    if st.button("⏭️  PDF almadan sonraki satıra geç", use_container_width=True, disabled=not var_pdf):
+        sonraki_satira_gec()
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ── NAVİGASYON ◀ ▶ ───────────────────────────────────────────────────────
     if st.session_state.kuyruk:
@@ -369,13 +460,15 @@ with sol:
         cn1, cn2, cn3 = st.columns([1, 2, 1])
         with cn1:
             if st.button("◀", use_container_width=True, disabled=idx == 0):
-                st.session_state.aktif_idx      -= 1
-                st.session_state.sorgulandı      = False
-                st.session_state.page_html       = None
-                st.session_state.pdf_bytes       = None
-                st.session_state.pdf_bytes_kucuk = None
-                st.session_state.sonuc_url       = ""
-                st.session_state.input_ver      += 1
+                st.session_state.aktif_idx       -= 1
+                st.session_state.sorgulandı       = False
+                st.session_state.page_html        = None
+                st.session_state.pdf_bytes        = None
+                st.session_state.pdf_bytes_kucuk  = None
+                st.session_state.sonuc_url        = ""
+                st.session_state.yeni_sayfa_pdf   = None
+                st.session_state.yeni_sayfa_pdf65 = None
+                st.session_state.input_ver       += 1
                 st.rerun()
         with cn2:
             st.markdown(f"<div style='text-align:center;font-family:JetBrains Mono,monospace;"
@@ -383,13 +476,15 @@ with sol:
                         unsafe_allow_html=True)
         with cn3:
             if st.button("▶", use_container_width=True, disabled=idx >= toplam - 1):
-                st.session_state.aktif_idx      += 1
-                st.session_state.sorgulandı      = False
-                st.session_state.page_html       = None
-                st.session_state.pdf_bytes       = None
-                st.session_state.pdf_bytes_kucuk = None
-                st.session_state.sonuc_url       = ""
-                st.session_state.input_ver      += 1
+                st.session_state.aktif_idx       += 1
+                st.session_state.sorgulandı       = False
+                st.session_state.page_html        = None
+                st.session_state.pdf_bytes        = None
+                st.session_state.pdf_bytes_kucuk  = None
+                st.session_state.sonuc_url        = ""
+                st.session_state.yeni_sayfa_pdf   = None
+                st.session_state.yeni_sayfa_pdf65 = None
+                st.session_state.input_ver       += 1
                 st.rerun()
 
     # ── MAVİ GTİP LİNKLERİ ───────────────────────────────────────────────────
@@ -402,10 +497,12 @@ with sol:
                     with st.spinner(f"⏳ {link['metin']} açılıyor..."):
                         h, pdf, pdf_k, gercek_url, hata = taric_url_ac(link["url"])
                     if not hata:
-                        st.session_state.page_html       = html_temizle(h)
-                        st.session_state.pdf_bytes       = pdf
-                        st.session_state.pdf_bytes_kucuk = pdf_k
-                        st.session_state.sonuc_url       = gercek_url or link["url"]
+                        st.session_state.page_html        = html_temizle(h)
+                        st.session_state.pdf_bytes        = pdf
+                        st.session_state.pdf_bytes_kucuk  = pdf_k
+                        st.session_state.sonuc_url        = gercek_url or link["url"]
+                        st.session_state.yeni_sayfa_pdf   = None
+                        st.session_state.yeni_sayfa_pdf65 = None
                         try: st.session_state.linkler = linkleri_cıkar(h)
                         except: st.session_state.linkler = []
                     else:
@@ -424,15 +521,17 @@ with sol:
 
         st.markdown("<div style='height:4px'></div><div class='btn-reset'>", unsafe_allow_html=True)
         if st.button("↺ Sıfırla", use_container_width=True):
-            st.session_state.kuyruk          = []
-            st.session_state.aktif_idx       = 0
-            st.session_state.sorgulandı      = False
-            st.session_state.page_html       = None
-            st.session_state.pdf_bytes       = None
-            st.session_state.pdf_bytes_kucuk = None
-            st.session_state.pdf_sayisi      = 0
-            st.session_state.sonuc_url       = ""
-            st.session_state.input_ver      += 1
+            st.session_state.kuyruk           = []
+            st.session_state.aktif_idx        = 0
+            st.session_state.sorgulandı       = False
+            st.session_state.page_html        = None
+            st.session_state.pdf_bytes        = None
+            st.session_state.pdf_bytes_kucuk  = None
+            st.session_state.pdf_sayisi       = 0
+            st.session_state.sonuc_url        = ""
+            st.session_state.yeni_sayfa_pdf   = None
+            st.session_state.yeni_sayfa_pdf65 = None
+            st.session_state.input_ver       += 1
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -447,11 +546,13 @@ if sorgula:
         if hata:
             st.error(f"❌ {hata}")
         else:
-            st.session_state.page_html       = html_temizle(html_content)
-            st.session_state.pdf_bytes       = pdf_bytes
-            st.session_state.pdf_bytes_kucuk = pdf_bytes_kucuk
-            st.session_state.sorgulandı      = True
-            st.session_state.sonuc_url       = gercek_url  # Playwright'ın gerçek sonuç URL'si
+            st.session_state.page_html        = html_temizle(html_content)
+            st.session_state.pdf_bytes        = pdf_bytes
+            st.session_state.pdf_bytes_kucuk  = pdf_bytes_kucuk
+            st.session_state.sorgulandı       = True
+            st.session_state.sonuc_url        = gercek_url
+            st.session_state.yeni_sayfa_pdf   = None
+            st.session_state.yeni_sayfa_pdf65 = None
             try: st.session_state.linkler = linkleri_cıkar(html_content)
             except: st.session_state.linkler = []
     st.rerun()
