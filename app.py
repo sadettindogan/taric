@@ -90,14 +90,48 @@ def html_getir(gtip, ulke, tarih):
     return resp.text
 
 def html_temizle(html):
+    BASE = "https://ec.europa.eu"
+    BASE_TARIC = "https://ec.europa.eu/taxation_customs/dds2/taric"
+
+    # Güvenlik headerlarını kaldır
     html = re.sub(r'<meta[^>]*(x-frame-options|content-security-policy)[^>]*>', '', html, flags=re.IGNORECASE)
-    ek = (
-        '<base href="https://ec.europa.eu" target="_blank">'
-        '<style>'
-        'body{font-size:15px!important;line-height:1.7!important;font-family:Arial,sans-serif!important}'
-        'table{font-size:14px!important}td,th{padding:6px 10px!important}'
-        '</style>'
+
+    # Tüm relative linkleri absolute yap
+    html = re.sub(r'href="(/[^"]*)"', lambda m: f'href="{BASE}{m.group(1)}"', html)
+    html = re.sub(r'src="(/[^"]*)"', lambda m: f'src="{BASE}{m.group(1)}"', html)
+    html = re.sub(r'action="(/[^"]*)"', lambda m: f'action="{BASE}{m.group(1)}"', html)
+
+    # javascript: linkleri yeni sekmede aç
+    html = re.sub(
+        r'href="(https?://[^"]*)"',
+        r'href="\1" target="_blank"',
+        html
     )
+
+    ek = f"""
+<base href="{BASE_TARIC}/">
+<style>
+  body {{
+    font-size:14px !important;
+    line-height:1.6 !important;
+    font-family: Arial, sans-serif !important;
+    background: #fff !important;
+  }}
+  table {{ font-size:13px !important; }}
+  td, th {{ padding: 5px 8px !important; }}
+  a {{ color: #1d4ed8 !important; cursor: pointer !important; }}
+  a:hover {{ text-decoration: underline !important; }}
+  /* Gereksiz header/footer gizle */
+  .ecl-site-header, .ecl-footer, #header, #footer,
+  .ecl-page-header, nav {{ display:none !important; }}
+  /* Ana içeriği öne çıkar */
+  #content, .ecl-container, main {{
+    padding: 8px !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }}
+</style>
+"""
     return html.replace("<head>", "<head>" + ek, 1) if "<head>" in html else ek + html
 
 # ─── SAYFA KONFIG ─────────────────────────────────────────────────────────────
@@ -180,18 +214,10 @@ if st.session_state.tetik:
 sol, sag = st.columns([1, 4], gap="medium")
 
 with sol:
-    # Başlık + Küçült butonu yan yana
     st.markdown("""
     <div style='display:flex;align-items:center;justify-content:space-between;
                 padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>
         <div style='font-size:22px;font-weight:800;'>🛃 TARIC</div>
-        <button onclick="window.resizeTo(980,750);window.moveTo(150,80);" style="
-            background:#1a1a1a;color:#c8b560;
-            border:1px solid #c8b560;
-            padding:4px 10px;border-radius:4px;
-            font-size:11px;cursor:pointer;font-weight:700;
-            font-family:monospace;
-        ">⊡ Küçült</button>
     </div>
     """, unsafe_allow_html=True)
 
@@ -274,9 +300,14 @@ with sol:
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# Sağ taraf — sorgu sonrası AB sitesini yeni sekmede aç
-if st.session_state.sonuc_url:
-    st.components.v1.html(
-        f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
-        height=0
-    )
+# ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
+with sag:
+    if st.session_state.html:
+        if st.session_state.sonuc_url:
+            st.markdown(
+                f"<div style='font-size:11px;color:#6b7280;font-family:monospace;padding:0 0 6px;'>"
+                f"🔗 <a href='{st.session_state.sonuc_url}' target='_blank' style='color:#1d4ed8;'>AB sitesinde aç ↗</a>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        st.components.v1.html(st.session_state.html, height=850, scrolling=True)
