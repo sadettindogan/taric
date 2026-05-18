@@ -72,7 +72,6 @@ def html_getir(gtip, ulke, tarih):
         "Referer": "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
     })
     session.get("https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en", timeout=15)
-
     tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
     data = {
         "Lang": "en",
@@ -108,15 +107,12 @@ st.markdown("""
 html,body,[data-testid="stAppViewContainer"]{background:#f5f3ef;}
 section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
-.block-container{padding:12px 16px!important;max-width:100%!important;}
-
-/* Sol panel sabit %20 genişlik, dikeyde küçülmez */
+.block-container{padding:50px 16px 12px 16px!important;max-width:100%!important;}
 [data-testid="column"]:first-child{
     min-width:260px!important;
     max-width:300px!important;
     flex:0 0 20%!important;
 }
-
 [data-testid="stTextInput"] input{
     border:1px solid #d4c97a!important;border-radius:4px!important;
     font-family:monospace!important;font-size:13px!important;font-weight:700!important;padding:7px 10px!important;
@@ -127,8 +123,8 @@ header{display:none!important;}
     white-space:pre!important;overflow-x:auto!important;tab-size:16!important;
 }
 .stButton>button{font-weight:700!important;border-radius:4px!important;padding:9px 0!important;width:100%!important;border:none!important;}
-.btn-s  .stButton>button{background:#1d4ed8!important;color:white!important;font-size:14px!important;padding:13px 0!important;}
-.btn-r  .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
+.btn-s .stButton>button{background:#1d4ed8!important;color:white!important;font-size:14px!important;padding:13px 0!important;}
+.btn-r .stButton>button{background:#e5e7eb!important;color:#6b7280!important;}
 .kart{background:white;border:1px solid #e5e7eb;border-radius:5px;padding:5px 10px;margin-bottom:3px;font-family:monospace;font-size:11px;}
 .aktif{border-color:#1d4ed8!important;background:#eff6ff!important;font-weight:700;color:#1d4ed8!important;}
 .tamam{opacity:0.4;}
@@ -147,6 +143,52 @@ hr{border-color:#e0ddd5!important;margin:8px 0!important;}
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ─── EN ÜSTTE SABİT BAR ───────────────────────────────────────────────────────
+st.components.v1.html("""
+<style>
+  #ust-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 999999;
+    background: #1a1a1a;
+    padding: 6px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    box-sizing: border-box;
+    font-family: monospace;
+  }
+  #ust-bar .baslik {
+    color: #c8b560;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  #ust-bar button {
+    background: transparent;
+    color: #c8b560;
+    border: 1px solid #c8b560;
+    padding: 4px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 700;
+    font-family: monospace;
+    transition: all 0.2s;
+  }
+  #ust-bar button:hover {
+    background: #c8b560;
+    color: #1a1a1a;
+  }
+</style>
+<div id="ust-bar">
+  <span class="baslik">🛃 TARIC Sorgu</span>
+  <button onclick="window.resizeTo(980, 750); window.moveTo(150, 80);">
+    ⊡ Küçük Pencere
+  </button>
+</div>
+""", height=40)
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in {
