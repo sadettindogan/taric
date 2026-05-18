@@ -25,7 +25,6 @@ def ulke_cevir(girdi):
 
 def gtip_cevir(girdi):
     temiz = str(girdi).replace(".", "").replace(" ", "").strip()
-    # Sondan düşürerek 10 haneye indir
     while len(temiz) > 10:
         temiz = temiz[:-1]
     return temiz
@@ -60,14 +59,11 @@ def satirlari_parse_et(ham):
     } for p in sonuc if len(p) >= 3]
 
 def sonuc_url_olustur(gtip, ulke, tarih):
-    """AB TARIC sorgu URL'si"""
-    # tarih zaten DD-MM-YYYY formatında geliyor, URL'ye öyle gönder
     base = "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp"
     params = {"Lang": "en", "taricCode": gtip, "Area": ulke, "SimDate": tarih, "Expand": "true"}
     return f"{base}?{urlencode(params)}"
 
 def html_getir(gtip, ulke, tarih):
-    """requests ile AB TARIC sayfasını çek — Playwright yok, RAM sorunu yok"""
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
@@ -75,7 +71,6 @@ def html_getir(gtip, ulke, tarih):
         "Accept-Language": "en-US,en;q=0.5",
         "Referer": "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
     })
-    # Cookie al
     session.get("https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en", timeout=15)
 
     tarih_temiz = tarih.replace("-", "").replace(".", "").replace("/", "")
@@ -114,6 +109,14 @@ html,body,[data-testid="stAppViewContainer"]{background:#f5f3ef;}
 section[data-testid="stSidebar"]{display:none;}
 header{display:none!important;}
 .block-container{padding:12px 16px!important;max-width:100%!important;}
+
+/* Sol panel sabit %20 genişlik, dikeyde küçülmez */
+[data-testid="column"]:first-child{
+    min-width:260px!important;
+    max-width:300px!important;
+    flex:0 0 20%!important;
+}
+
 [data-testid="stTextInput"] input{
     border:1px solid #d4c97a!important;border-radius:4px!important;
     font-family:monospace!important;font-size:13px!important;font-weight:700!important;padding:7px 10px!important;
@@ -136,6 +139,11 @@ hr{border-color:#e0ddd5!important;margin:8px 0!important;}
     background:#1a1a1a;border-radius:6px 6px 0 0;
     padding:8px 14px;font-family:monospace;font-size:12px;
     color:#c8b560;font-weight:700;
+}
+.sag-placeholder{
+    height:400px;display:flex;align-items:center;justify-content:center;
+    color:#9ca3af;font-size:14px;border:2px dashed #e5e7eb;
+    border-radius:8px;margin-top:40px;flex-direction:column;gap:10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -183,7 +191,7 @@ if st.session_state.tetik:
         durum.error(f"❌ {e}")
 
 # ─── LAYOUT ───────────────────────────────────────────────────────────────────
-sol, _ = st.columns([1, 3], gap="medium")
+sol, sag = st.columns([1, 4], gap="medium")
 
 with sol:
     st.markdown("<div style='font-size:22px;font-weight:800;padding-bottom:10px;border-bottom:2px solid #c8b560;margin-bottom:12px;'>🛃 TARIC</div>", unsafe_allow_html=True)
@@ -267,9 +275,23 @@ with sol:
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# Sorgu sonrası AB sitesini otomatik yeni sekmede aç
-if st.session_state.sonuc_url:
-    st.components.v1.html(
-        f"<script>window.open('{st.session_state.sonuc_url}', '_blank');</script>",
-        height=0
-    )
+# ─── SAĞ PANEL ────────────────────────────────────────────────────────────────
+with sag:
+    if st.session_state.html:
+        st.markdown("<div class='web-panel-baslik'>🌐 AB TARIC Sonucu</div>", unsafe_allow_html=True)
+        if st.session_state.sonuc_url:
+            st.markdown(
+                f"<div style='font-size:11px;color:#6b7280;font-family:monospace;padding:4px 0 8px;'>"
+                f"🔗 <a href='{st.session_state.sonuc_url}' target='_blank'>{st.session_state.sonuc_url[:80]}...</a>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        st.components.v1.html(st.session_state.html, height=800, scrolling=True)
+    else:
+        st.markdown("""
+        <div class='sag-placeholder'>
+            <div style='font-size:40px;'>🛃</div>
+            <div style='font-weight:700;color:#6b7280;'>Sorgu sonucu burada görünecek</div>
+            <div style='font-size:12px;color:#d1d5db;'>Sol panelden GTİP, Ülke ve Tarih girerek sorgulayın</div>
+        </div>
+        """, unsafe_allow_html=True)
